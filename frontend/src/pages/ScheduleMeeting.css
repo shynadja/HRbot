@@ -1,0 +1,265 @@
+.schedule-meeting-content {
+  padding: 20px;
+  max-height: calc(100vh - 120px);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #229ED9 #182533;
+}
+
+.schedule-meeting-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.schedule-meeting-content::-webkit-scrollbar-track {
+  background: #182533;
+  border-radius: 10px;
+}
+
+.schedule-meeting-content::-webkit-scrollbar-thumb {
+  background: #229ED9;
+  border-radius: 10px;
+}
+
+.schedule-meeting-content::-webkit-scrollbar-thumb:hover {
+  background: #4A9BD6;
+}
+
+.meeting-description {
+  color: #8CA0B5;
+  font-size: 14px;
+  line-height: 1.5;
+  margin-bottom: 25px;
+  text-align: left;
+}
+
+.meeting-form {
+  display: flex;
+  flex-direction: column;
+  gap: 25px;
+  margin-bottom: 30px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.form-label-with-icon {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 5px;
+}
+
+.label-icon {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  filter: drop-shadow(0 0 4px rgba(34, 158, 217, 0.4));
+}
+
+.form-label {
+  color: #FFFFFF;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.form-input {
+  width: 100%;
+  padding: 15px;
+  background: #17212B;
+  border: 2px solid #229ED9;
+  border-radius: 12px;
+  color: #FFFFFF;
+  font-size: 16px;
+  font-family: inherit;
+  outline: none;
+  transition: all 0.3s ease;
+  box-sizing: border-box;
+}
+
+.form-input:focus {
+  border-color: #4A9BD6;
+  box-shadow: 0 0 15px rgba(34, 158, 217, 0.3);
+}
+
+.form-input.has-value {
+  border-color: #4A9BD6;
+}
+
+.form-input[type="date"]::-webkit-calendar-picker-indicator,
+.form-input[type="time"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  opacity: 0.7;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.form-input[type="date"]::-webkit-calendar-picker-indicator:hover,
+.form-input[type="time"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+  filter: invert(1) drop-shadow(0 0 4px #229ED9);
+}
+
+.form-input::placeholder {
+  color: #8CA0B5;
+  opacity: 0.7;
+}
+
+.create-button {
+  width: 100%;
+  padding: 15px;
+  background: #24405CCF;
+  border: none;
+  border-radius: 12px;
+  color: #FFFFFF;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 3px #229ED9;
+}
+
+.create-button.active {
+  background: linear-gradient(135deg, #229ED9, #4A9BD6);
+  box-shadow: 0 5px 15px rgba(34, 158, 217, 0.3);
+}
+
+.create-button.active:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 20px rgba(34, 158, 217, 0.4);
+}
+
+.create-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: 0 2px 3px #229ED9;
+}
+
+.meeting-notification {
+  background: #182533;
+  border: 2px solid #229ED9;
+  border-radius: 12px;
+  padding: 20px;
+  margin-top: 20px;
+  animation: slideUp 0.5s ease-out;
+  box-shadow: 0 5px 20px rgba(34, 158, 217, 0.2);
+}
+
+.notification-content {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  margin-bottom: 15px;
+}
+
+.notification-icon {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  animation: pulse 2s infinite;
+}
+
+.notification-text {
+  flex: 1;
+}
+
+.notification-text strong {
+  color: #229ED9;
+  font-size: 16px;
+  display: block;
+  margin-bottom: 5px;
+}
+
+.notification-text p {
+  color: #8CA0B5;
+  font-size: 14px;
+}
+
+.calendar-link {
+  width: 100%;
+  padding: 12px;
+  background: transparent;
+  border: 2px solid #229ED9;
+  border-radius: 8px;
+  color: #229ED9;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-align: center;
+}
+
+.calendar-link:hover {
+  background: rgba(34, 158, 217, 0.1);
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(34, 158, 217, 0.2);
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 4px rgba(34, 158, 217, 0.4));
+  }
+  50% {
+    transform: scale(1.1);
+    filter: drop-shadow(0 0 8px rgba(34, 158, 217, 0.8));
+  }
+}
+
+/* Адаптация под мобильные устройства */
+@media (max-width: 480px) {
+  .schedule-meeting-content {
+    padding: 15px;
+  }
+  
+  .form-input {
+    padding: 12px;
+    font-size: 14px;
+  }
+  
+  .create-button {
+    padding: 12px;
+    font-size: 15px;
+  }
+  
+  .form-label {
+    font-size: 13px;
+  }
+  
+  .label-icon {
+    width: 18px;
+    height: 18px;
+  }
+  
+  .notification-content {
+    gap: 12px;
+  }
+  
+  .notification-icon {
+    width: 28px;
+    height: 28px;
+  }
+  
+  .notification-text strong {
+    font-size: 15px;
+  }
+  
+  .notification-text p {
+    font-size: 13px;
+  }
+}

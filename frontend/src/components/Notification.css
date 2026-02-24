@@ -1,0 +1,40 @@
+.notification {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  background: linear-gradient(135deg, #229ED9, #4A9BD6);
+  color: white;
+  padding: 15px 20px;
+  border-radius: 10px;
+  box-shadow: 0 5px 20px rgba(34, 158, 217, 0.4);
+  z-index: 1000;
+  animation: slideInRight 0.3s ease-out;
+  font-size: 14px;
+  max-width: 300px;
+}
+
+.notification.error {
+  background: linear-gradient(135deg, #DC3545, #B02A37);
+}
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideOutRight {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+}

@@ -1,0 +1,68 @@
+.feedback-content {
+  padding: 20px;
+}
+
+.feedback-textarea {
+  width: 100%;
+  height: 150px;
+  background: #17212B;
+  border: 2px solid #229ED9;
+  border-radius: 12px;
+  color: white;
+  padding: 15px;
+  font-size: 16px;
+  font-family: inherit;
+  resize: vertical;
+  margin-bottom: 20px;
+  outline: none;
+  transition: all 0.3s;
+}
+
+.feedback-textarea:focus {
+  border-color: #4A9BD6;
+  box-shadow: 0 0 15px rgba(34, 158, 217, 0.3);
+}
+
+.feedback-buttons {
+  display: flex;
+  gap: 15px;
+}
+
+.feedback-submit-btn,
+.feedback-cancel-btn {
+  flex: 1;
+  padding: 15px;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.feedback-submit-btn {
+  background: linear-gradient(135deg, #229ED9, #4A9BD6);
+  color: white;
+}
+
+.feedback-submit-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(34, 158, 217, 0.3);
+}
+
+.feedback-cancel-btn {
+  background: transparent;
+  border: 2px solid #229ED9;
+  color: #229ED9;
+}
+
+.feedback-cancel-btn:hover:not(:disabled) {
+  background: rgba(34, 158, 217, 0.1);
+  transform: translateY(-2px);
+}
+
+.feedback-submit-btn:disabled,
+.feedback-cancel-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

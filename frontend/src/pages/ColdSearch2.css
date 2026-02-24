@@ -1,0 +1,186 @@
+.cold-search-content {
+  padding: 20px;
+  max-height: calc(100vh - 120px);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #229ED9 #182533;
+}
+
+.cold-search-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.cold-search-content::-webkit-scrollbar-track {
+  background: #182533;
+  border-radius: 10px;
+}
+
+.cold-search-content::-webkit-scrollbar-thumb {
+  background: #229ED9;
+  border-radius: 10px;
+}
+
+.cold-search-content::-webkit-scrollbar-thumb:hover {
+  background: #4A9BD6;
+}
+
+.search-description {
+  color: #8CA0B5;
+  font-size: 14px;
+  line-height: 1.5;
+  margin-bottom: 25px;
+  text-align: left;
+}
+
+.filters-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  margin-bottom: 25px;
+}
+
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.filter-label {
+  color: #FFFFFF;
+  font-size: 14px;
+  font-weight: 500;
+  margin-left: 5px;
+}
+
+.filter-select {
+  width: 100%;
+  padding: 15px;
+  background: #17212B;
+  border: 2px solid #229ED9;
+  border-radius: 12px;
+  color: #FFFFFF;
+  font-size: 16px;
+  font-family: inherit;
+  outline: none;
+  transition: all 0.3s ease;
+  cursor: pointer;
+  appearance: none;
+  /* Кастомная стрелка - белая галочка углом вниз */
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 15px center;
+  background-size: 20px;
+}
+
+.filter-select:focus {
+  border-color: #4A9BD6;
+  box-shadow: 0 0 15px rgba(34, 158, 217, 0.3);
+}
+
+.filter-select.has-value {
+  border-color: #4A9BD6;
+}
+
+.filter-select option {
+  background: #17212B;
+  color: #FFFFFF;
+  padding: 10px;
+}
+
+.filter-select option:disabled {
+  color: #8CA0B5;
+}
+
+/* Стили для Firefox (убираем стандартную стрелку) */
+.filter-select {
+  text-overflow: '';
+}
+.filter-select:-moz-focusring {
+  color: transparent;
+  text-shadow: 0 0 0 #FFFFFF;
+}
+
+/* Для IE */
+.filter-select::-ms-expand {
+  display: none;
+}
+
+.search-button {
+  width: 100%;
+  padding: 15px;
+  background: #24405CCF;
+  border: none;
+  border-radius: 12px;
+  color: #FFFFFF;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  margin-bottom: 30px;
+  box-shadow: 0 2px 3px #229ED9;
+}
+
+.search-button.active {
+  background: linear-gradient(135deg, #229ED9, #4A9BD6);
+  box-shadow: 0 5px 15px rgba(34, 158, 217, 0.3);
+}
+
+.search-button.active:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 20px rgba(34, 158, 217, 0.4);
+}
+
+.search-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: 0 2px 3px #229ED9;
+}
+
+.results-count {
+  color: #229ED9;
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 20px;
+  text-align: left;
+  animation: fadeIn 0.6s ease-out;
+}
+
+.candidates-list {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  animation: fadeIn 0.8s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Адаптация под мобильные устройства */
+@media (max-width: 480px) {
+  .cold-search-content {
+    padding: 15px;
+  }
+  
+  .filter-select {
+    padding: 12px;
+    font-size: 14px;
+    background-position: right 12px center;
+    background-size: 18px;
+  }
+  
+  .search-button {
+    padding: 12px;
+    font-size: 15px;
+  }
+  
+  .filter-label {
+    font-size: 13px;
+  }
+}
