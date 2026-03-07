@@ -1,50 +1,129 @@
 .header {
   background-color: #17212B;
-  padding: 15px 0;
+  padding: 15px 20px;
   display: flex;
   justify-content: space-between;
   align-items: center;
+  position: sticky;
   top: 0;
   z-index: 100;
+  border-bottom: 2px solid rgba(34, 158, 217, 0.2);
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 15px;
 }
 
 .logo {
   font-size: 22px;
   font-weight: 700;
   color: #FFFFFF;
+  background: linear-gradient(135deg, #229ED9, #4A9BD6);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
-.settings-btn {
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 0;
-  transition: all 0.3s;
+.admin-badge {
   display: flex;
   align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-}
-
-.settings-btn:hover .settings-icon {
-  filter: drop-shadow(0 0 8px rgba(34, 158, 217, 0.8));
-}
-
-.settings-icon {
-  width: 24px;
-  height: 24px;
-  object-fit: contain;
+  gap: 5px;
+  background: rgba(255, 193, 7, 0.15);
+  border: 1px solid #FFC107;
+  border-radius: 20px;
+  padding: 5px 12px;
+  color: #FFC107;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
   transition: all 0.3s ease;
 }
 
-@media (max-width: 480px) {
+.admin-badge:hover {
+  background: rgba(255, 193, 7, 0.25);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 10px rgba(255, 193, 7, 0.2);
+}
+
+.admin-badge svg {
+  filter: drop-shadow(0 0 4px #FFC107);
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.user-info {
+  padding: 5px 12px;
+  background: rgba(34, 158, 217, 0.1);
+  border-radius: 20px;
+  border: 1px solid rgba(34, 158, 217, 0.3);
+}
+
+.user-name {
+  color: #FFFFFF;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.settings-btn,
+.logout-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s;
+  color: #229ED9;
+}
+
+.settings-btn:hover,
+.logout-btn:hover {
+  background: rgba(34, 158, 217, 0.1);
+  transform: rotate(15deg);
+}
+
+.logout-btn {
+  color: #DC3545;
+}
+
+.logout-btn:hover {
+  background: rgba(220, 53, 69, 0.1);
+  color: #FF4D4D;
+}
+
+@media (max-width: 768px) {
+  .user-info {
+    display: none;
+  }
+  
   .logo {
     font-size: 20px;
   }
+}
+
+@media (max-width: 480px) {
+  .header {
+    padding: 12px 15px;
+  }
   
-  .settings-icon {
-    width: 22px;
-    height: 22px;
+  .admin-badge span {
+    display: none;
+  }
+  
+  .admin-badge {
+    padding: 5px;
+  }
+  
+  .settings-btn,
+  .logout-btn {
+    padding: 6px;
   }
 }

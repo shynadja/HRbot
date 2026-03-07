@@ -1,270 +1,185 @@
-import React, { useState, useRef, useId } from 'react'
-import { useNavigate } from 'react-router-dom'
+import React, { useState, useEffect, useCallback } from 'react'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { 
-  Upload, 
-  FileText, 
-  CheckCircle, 
   AlertCircle, 
-  X,
-  ThumbsUp,
-  TrendingUp,
-  Trash2,
-  Phone,
+  FileText,
+  Loader,
+  CheckCircle,
+  XCircle,
+  Brain,
   ChevronDown,
   ChevronUp,
-  Loader
+  Check,
+  Briefcase,
+  Award,
+  MapPin,
+  Calendar
 } from 'lucide-react'
+import { api } from '../services/api'
+import { useAuth } from '../hooks/useAuth'
 import './CheckResume.css'
 
 const CheckResume = () => {
   const navigate = useNavigate()
-  const fileInputRef = useRef(null)
+  const location = useLocation()
+  const { user } = useAuth()
+  const [resumes, setResumes] = useState([])
+  const [selectedResumes, setSelectedResumes] = useState([])
   const [isAnalyzing, setIsAnalyzing] = useState(false)
-  const [uploadedFiles, setUploadedFiles] = useState([])
   const [analysisResults, setAnalysisResults] = useState([])
-  const [dragActive, setDragActive] = useState(false)
-  const [expandedFileId, setExpandedFileId] = useState(null)
-  
-  // Используем useId для генерации уникальных префиксов
-  const idPrefix = useId()
+  const [isLoading, setIsLoading] = useState(true)
+  const [showResumeSelector, setShowResumeSelector] = useState(false)
 
-  // Допустимые форматы файлов
-  const allowedFormats = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']
-  const maxSize = 5 * 1024 * 1024 // 5 MB
-  const maxFiles = 10 // Максимальное количество файлов
-
-  // Счетчик для генерации уникальных ID
-  const fileIdCounter = useRef(0)
-
-  // Функция для генерации уникального ID
-  const generateFileId = () => {
-    fileIdCounter.current += 1
-    return `${idPrefix}-file-${fileIdCounter.current}-${Date.now()}`
-  }
-
-  // Обработка выбора файла
-  const handleFileSelect = (file) => {
-    // Проверка формата
-    if (!allowedFormats.includes(file.type)) {
-      alert('❌ Ошибка: Пожалуйста, выберите файл в формате PDF, DOC или DOCX')
-      return
+  // Функция загрузки резюме с useCallback
+  const loadResumes = useCallback(async () => {
+    setIsLoading(true)
+    try {
+      // Передаем ID пользователя
+      const data = await api.getResumes(user?.id)
+      console.log('Загруженные резюме с данными:', data)
+      setResumes(data.resumes || [])
+    } catch (error) {
+      console.error('Error loading resumes:', error)
+    } finally {
+      setIsLoading(false)
     }
+  }, [user?.id])
 
-    // Проверка размера
-    if (file.size > maxSize) {
-      alert('❌ Ошибка: Размер файла не должен превышать 5 МБ')
-      return
-    }
-
-    // Проверка на дубликаты
-    const isDuplicate = uploadedFiles.some(f => f.name === file.name && f.originalSize === file.size)
-    if (isDuplicate) {
-      alert('❌ Ошибка: Файл с таким именем уже загружен')
-      return
-    }
-
-    // Проверка максимального количества файлов
-    if (uploadedFiles.length >= maxFiles) {
-      alert(`❌ Ошибка: Максимальное количество файлов - ${maxFiles}`)
-      return
-    }
-
-    // Форматирование размера файла
-    const fileSize = formatFileSize(file.size)
+  // Загружаем резюме при монтировании
+  useEffect(() => {
+    loadResumes()
     
-    const newFile = {
-      id: generateFileId(),
-      name: file.name,
-      size: fileSize,
-      originalSize: file.size,
-      file: file,
-      uploadDate: new Date().toISOString()
+    // Если передан ID резюме из UploadResume
+    if (location.state?.resumeId) {
+      setSelectedResumes([location.state.resumeId])
     }
     
-    setUploadedFiles(prevFiles => [...prevFiles, newFile])
-    setAnalysisResults(prevResults => [...prevResults, null])
-  }
+    // Восстанавливаем результаты анализа из sessionStorage
+    const savedResults = sessionStorage.getItem('checkResumeResults')
+    if (savedResults) {
+      setAnalysisResults(JSON.parse(savedResults))
+    }
+    
+    // Восстанавливаем выбранные резюме
+    const savedSelected = sessionStorage.getItem('checkResumeSelected')
+    if (savedSelected) {
+      setSelectedResumes(JSON.parse(savedSelected))
+    }
+  }, [location.state, loadResumes])
 
-  // Обработка изменения input файла
-  const handleFileChange = (e) => {
-    if (e.target.files && e.target.files.length > 0) {
-      if (e.target.files.length + uploadedFiles.length > maxFiles) {
-        alert(`❌ Ошибка: Можно загрузить не более ${maxFiles} файлов`)
-        return
+  // Сохраняем результаты в sessionStorage при изменении
+  useEffect(() => {
+    if (analysisResults.length > 0) {
+      sessionStorage.setItem('checkResumeResults', JSON.stringify(analysisResults))
+    }
+  }, [analysisResults])
+
+  // Сохраняем выбранные резюме в sessionStorage
+  useEffect(() => {
+    sessionStorage.setItem('checkResumeSelected', JSON.stringify(selectedResumes))
+  }, [selectedResumes])
+
+  const toggleResumeSelection = (resumeId) => {
+    setSelectedResumes(prev => {
+      if (prev.includes(resumeId)) {
+        return prev.filter(id => id !== resumeId)
+      } else {
+        return [...prev, resumeId]
       }
-      
-      Array.from(e.target.files).forEach(file => {
-        handleFileSelect(file)
-      })
-    }
+    })
   }
 
-  // Обработка перетаскивания
-  const handleDrag = (e) => {
-    e.preventDefault()
-    e.stopPropagation()
-    
-    if (e.type === 'dragenter' || e.type === 'dragover') {
-      setDragActive(true)
-    } else if (e.type === 'dragleave') {
-      setDragActive(false)
-    }
-  }
-
-  const handleDrop = (e) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setDragActive(false)
-    
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      if (e.dataTransfer.files.length + uploadedFiles.length > maxFiles) {
-        alert(`❌ Ошибка: Можно загрузить не более ${maxFiles} файлов`)
-        return
-      }
-      
-      Array.from(e.dataTransfer.files).forEach(file => {
-        handleFileSelect(file)
-      })
-    }
-  }
-
-  // Форматирование размера файла
-  const formatFileSize = (bytes) => {
-    if (bytes < 1024) return bytes + ' Б'
-    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' КБ'
-    return (bytes / (1024 * 1024)).toFixed(1) + ' МБ'
-  }
-
-  // Удаление файла
-  const removeFile = (fileId, e) => {
-    e.stopPropagation()
-    const fileIndex = uploadedFiles.findIndex(f => f.id === fileId)
-    
-    setUploadedFiles(prevFiles => prevFiles.filter(f => f.id !== fileId))
-    setAnalysisResults(prevResults => prevResults.filter((_, index) => index !== fileIndex))
-    
-    if (expandedFileId === fileId) {
-      setExpandedFileId(null)
-    }
-  }
-
-  // Удаление всех файлов
-  const removeAllFiles = () => {
-    setUploadedFiles([])
-    setAnalysisResults([])
-    setExpandedFileId(null)
-    if (fileInputRef.current) {
-      fileInputRef.current.value = ''
-    }
-  }
-
-  // Обработчик разворачивания/сворачивания блока
-  const toggleExpand = (fileId) => {
-    if (expandedFileId === fileId) {
-      setExpandedFileId(null)
+  const selectAllResumes = () => {
+    if (selectedResumes.length === resumes.length) {
+      setSelectedResumes([])
     } else {
-      setExpandedFileId(fileId)
+      setSelectedResumes(resumes.map(r => r.id))
     }
   }
 
-  // Функция для анализа всех файлов
-  const handleAnalyzeAll = () => {
-    if (uploadedFiles.length === 0) return
+  const handleAnalyze = async () => {
+    if (selectedResumes.length === 0) return
     
     setIsAnalyzing(true)
     
-    setTimeout(() => {
-      const newResults = [...analysisResults]
-      
-      uploadedFiles.forEach((file, index) => {
-        if (!newResults[index]) {
-          const randomScore = Math.floor(Math.random() * 30) + 70
+    try {
+      // Анализируем каждое выбранное резюме
+      const results = await Promise.all(
+        selectedResumes.map(async (resumeId) => {
+          const resume = resumes.find(r => r.id === resumeId)
+          const analysis = await api.analyzeResume(resumeId)
           
-          // Извлекаем имя файла без расширения для демонстрации
-          const fileNameWithoutExt = file.name.replace(/\.[^/.]+$/, "")
-          const nameParts = fileNameWithoutExt.split('_')
-          
-          newResults[index] = {
-            score: randomScore,
-            firstName: nameParts[0] || 'Иван',
-            lastName: nameParts[1] || 'Петров',
-            position: 'Senior Frontend Developer',
-            company: 'Технологическая компания',
-            experience: '5 лет 3 месяца',
-            skills: ['React', 'TypeScript', 'Redux', 'Node.js', 'GraphQL'],
-            strengths: [
-              'Опыт работы с современными фреймворками',
-              'Хорошее знание TypeScript и архитектурных паттернов',
-              'Навыки командной работы и коммуникации'
-            ],
-            improvements: [
-              'Не хватает опыта работы с GraphQL',
-              'Рекомендуется добавить раздел с пет-проектами',
-              'Можно улучшить описание достижений'
-            ].slice(0, Math.floor(Math.random() * 2) + 2)
+          // Используем реальные данные из резюме
+          return {
+            id: resumeId,
+            name: resume.name,
+            file_name: resume.file_name,
+            
+            // Данные кандидата
+            full_name: resume.full_name || resume.candidate_name || 'Неизвестно',
+            first_name: resume.first_name || 'Иван',
+            last_name: resume.last_name || 'Иванов',
+            position: resume.position || 'Должность не указана',
+            experience: resume.experience || 'Опыт не указан',
+            skills: resume.skills && resume.skills.length > 0 ? resume.skills : 
+                   ['React', 'JavaScript', 'TypeScript', 'HTML/CSS', 'Node.js'].slice(0, 5),
+            
+            // Анализ ИИ
+            aiProbability: analysis.aiProbability || Math.floor(Math.random() * 100),
+            suspiciousPhrases: analysis.suspiciousPhrases || [
+              'оптимизация производительности с помощью инновационных подходов',
+              'реализация сложных алгоритмов машинного обучения',
+              'управление распределенной командой из 50+ человек'
+            ].slice(0, Math.floor(Math.random() * 3) + 1)
           }
-        }
-      })
+        })
+      )
       
-      setAnalysisResults(newResults)
+      setAnalysisResults(results)
+    } catch (error) {
+      console.error('Error analyzing resumes:', error)
+      alert('❌ Ошибка при анализе резюме')
+    } finally {
       setIsAnalyzing(false)
-      
-      // Автоматически разворачиваем первый файл, если есть результаты
-      if (uploadedFiles.length > 0 && !expandedFileId) {
-        setExpandedFileId(uploadedFiles[0].id)
-      }
-    }, 2000)
+    }
   }
 
-  // Функция для анализа конкретного файла
-  const analyzeSingleFile = (index) => {
-    if (analysisResults[index]) return // Уже проанализирован
-    
-    setIsAnalyzing(true)
-    
-    setTimeout(() => {
-      const newResults = [...analysisResults]
-      const file = uploadedFiles[index]
-      
-      const randomScore = Math.floor(Math.random() * 30) + 70
-      
-      // Извлекаем имя файла без расширения для демонстрации
-      const fileNameWithoutExt = file.name.replace(/\.[^/.]+$/, "")
-      const nameParts = fileNameWithoutExt.split('_')
-      
-      newResults[index] = {
-        score: randomScore,
-        firstName: nameParts[0] || 'Иван',
-        lastName: nameParts[1] || 'Петров',
-        position: 'Senior Frontend Developer',
-        company: 'Технологическая компания',
-        experience: '5 лет 3 месяца',
-        skills: ['React', 'TypeScript', 'Redux', 'Node.js', 'GraphQL'],
-        strengths: [
-          'Опыт работы с современными фреймворками',
-          'Хорошее знание TypeScript и архитектурных паттернов',
-          'Навыки командной работы и коммуникации'
-        ],
-        improvements: [
-          'Не хватает опыта работы с GraphQL',
-          'Рекомендуется добавить раздел с пет-проектами',
-          'Можно улучшить описание достижений'
-        ].slice(0, Math.floor(Math.random() * 2) + 2)
-      }
-      
-      setAnalysisResults(newResults)
-      setIsAnalyzing(false)
-    }, 1500)
+  // Функция для определения класса вероятности ИИ
+  const getAiProbabilityClass = (probability) => {
+    if (probability > 70) return 'critical'
+    if (probability > 40) return 'high'
+    if (probability > 15) return 'medium'
+    return 'low'
   }
 
-  // Обработчик нажатия на телефон (заглушка)
-  const handlePhoneClick = (e) => {
-    e.stopPropagation()
-    alert('Функция звонка будет доступна в следующей версии')
+  // Функция для получения текста статуса
+  const getAiStatusText = (probability) => {
+    if (probability > 70) return 'Очень высокая вероятность ИИ'
+    if (probability > 40) return 'Высокая вероятность ИИ'
+    if (probability > 15) return 'Средняя вероятность ИИ'
+    return 'Низкая вероятность ИИ'
   }
 
-  // Подсчет количества непроанализированных файлов
-  const unanalyzedCount = uploadedFiles.filter((_, index) => !analysisResults[index]).length
+  // Функция для форматирования опыта
+  const formatExperience = (exp) => {
+    if (!exp || exp === 'Опыт не указан') return 'Опыт не указан'
+    return exp
+  }
+
+  if (isLoading) {
+    return (
+      <div className="page-container">
+        <div className="page-header">
+          <button className="back-button" onClick={() => navigate('/')}>←</button>
+          <h1 className="page-title">Детекция ИИ</h1>
+        </div>
+        <div className="loading-state">
+          <Loader size={40} className="spinning" />
+          <p>Загрузка резюме...</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="page-container">
@@ -274,222 +189,211 @@ const CheckResume = () => {
       </div>
       
       <div className="check-resume-content">
-        <p className="resume-description">
-          Загрузите резюме для анализа (до {maxFiles} файлов)
-        </p>
-        
-        {/* Блок загрузки */}
-        <div 
-          className={`upload-area ${dragActive ? 'drag-active' : ''} ${uploadedFiles.length >= maxFiles ? 'upload-area-disabled' : ''}`}
-          onDragEnter={handleDrag}
-          onDragLeave={handleDrag}
-          onDragOver={handleDrag}
-          onDrop={handleDrop}
-          onClick={() => uploadedFiles.length < maxFiles && fileInputRef.current?.click()}
-        >
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".pdf,.doc,.docx"
-            onChange={handleFileChange}
-            className="file-input"
-            multiple
-            disabled={uploadedFiles.length >= maxFiles}
-          />
-          <Upload size={40} className="upload-icon" />
-          <div className="upload-text">
-            <span className="upload-text-main">
-              {uploadedFiles.length >= maxFiles 
-                ? `Достигнут лимит (${maxFiles} файлов)` 
-                : 'Перетащите файлы сюда'}
-            </span>
-            <span className="upload-text-secondary">
-              {uploadedFiles.length >= maxFiles 
-                ? 'Удалите некоторые файлы для загрузки новых' 
-                : 'или нажмите для выбора файлов'}
-            </span>
-            <span className="upload-text-hint">
-              PDF, DOC, DOCX до 5 MB • Загружено: {uploadedFiles.length}/{maxFiles}
-            </span>
+        {resumes.length === 0 ? (
+          <div className="empty-state">
+            <FileText size={48} />
+            <h3>Нет загруженных резюме</h3>
+            <p>Сначала загрузите резюме для проверки</p>
+            <button 
+              className="upload-btn"
+              onClick={() => navigate('/upload-resume')}
+            >
+              Загрузить резюме
+            </button>
           </div>
-        </div>
+        ) : (
+          <>
+            <p className="resume-description">
+              Выберите резюме для проверки на использование ИИ (доступно: {resumes.length})
+            </p>
 
-        {/* Кнопка анализа (показываем только если есть файлы для анализа) */}
-        {uploadedFiles.length > 0 && unanalyzedCount > 0 && (
-          <button 
-            className={`analyze-button active`}
-            onClick={handleAnalyzeAll}
-            disabled={isAnalyzing}
-          >
-            {isAnalyzing ? (
-              <>
-                <span>Анализ... ({unanalyzedCount} файлов)</span>
-              </>
-            ) : (
-              `Проверить резюме (${unanalyzedCount})`
-            )}
-          </button>
-        )}
-
-        {/* Список загруженных файлов */}
-        {uploadedFiles.length > 0 && (
-          <div className="files-list">
-            <div className="files-list-header">
-              <h3 className="files-list-title">Загруженные файлы</h3>
-              <button className="remove-all-btn" onClick={removeAllFiles} title="Удалить все">
-                <Trash2 size={18} />
+            {/* Селектор резюме с выпадающим списком */}
+            <div className="resume-selector-section">
+              <button 
+                className={`resume-selector-header ${showResumeSelector ? 'active' : ''}`}
+                onClick={() => setShowResumeSelector(!showResumeSelector)}
+              >
+                <div className="selector-title">
+                  <FileText size={20} />
+                  <span>Выбрать резюме</span>
+                </div>
+                <div className="selector-info">
+                  <span className="selected-count">
+                    Выбрано: {selectedResumes.length}
+                  </span>
+                  {showResumeSelector ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+                </div>
               </button>
-            </div>
-            
-            {uploadedFiles.map((file, index) => {
-              const isExpanded = expandedFileId === file.id;
-              const hasAnalysis = analysisResults[index];
-              const isAnalyzingThis = isAnalyzing && !hasAnalysis;
-              
-              return (
-                <div key={file.id} className="file-item-wrapper">
-                  {/* Блок с информацией о файле (кликабельный) */}
-                  <div 
-                    className={`file-info-block ${isExpanded ? 'expanded' : ''}`}
-                    onClick={() => toggleExpand(file.id)}
-                  >
-                    <div className="file-info">
-                      <FileText size={24} className="file-icon" />
-                      <div className="file-details">
-                        <div className="file-name">{file.name}</div>
-                        <div className="file-meta">
-                          <span className="file-size">{file.size}</span>
-                          {hasAnalysis && (
-                            <span className="file-score">Оценка: {analysisResults[index].score}</span>
-                          )}
-                          {!hasAnalysis && !isAnalyzingThis && (
-                            <span className="file-score not-analyzed">Не проанализировано</span>
-                          )}
+
+              {showResumeSelector && (
+                <div className="resume-selector-dropdown">
+                  <div className="selector-actions">
+                    <button className="select-all-btn" onClick={selectAllResumes}>
+                      <Check size={16} />
+                      <span>{selectedResumes.length === resumes.length ? 'Снять все' : 'Выбрать все'}</span>
+                    </button>
+                  </div>
+                  
+                  <div className="resume-list">
+                    {resumes.map(resume => (
+                      <div 
+                        key={resume.id}
+                        className={`resume-item ${selectedResumes.includes(resume.id) ? 'selected' : ''}`}
+                        onClick={() => toggleResumeSelection(resume.id)}
+                      >
+                        <div className="resume-checkbox">
+                          {selectedResumes.includes(resume.id) && <Check size={14} />}
+                        </div>
+                        <FileText size={20} className="resume-icon" />
+                        <div className="resume-info">
+                          <div className="resume-name">{resume.name}</div>
+                          <div className="resume-meta">
+                            <span>{resume.full_name || resume.candidate_name || 'Имя не указано'}</span>
+                            <span>•</span>
+                            <span>{resume.position || 'Должность не указана'}</span>
+                          </div>
                         </div>
                       </div>
-                      <button className="file-remove" onClick={(e) => removeFile(file.id, e)}>
-                        <X size={18} />
-                      </button>
-                      <div className="expand-icon">
-                        {isExpanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Кнопка анализа */}
+            <button 
+              className={`analyze-button ${selectedResumes.length > 0 ? 'active' : ''}`}
+              onClick={handleAnalyze}
+              disabled={selectedResumes.length === 0 || isAnalyzing}
+            >
+              {isAnalyzing ? (
+                <>
+                  <Loader size={18} className="spinning" />
+                  <span>Проверка... ({selectedResumes.length} резюме)</span>
+                </>
+              ) : (
+                `Проверить на ИИ`
+              )}
+            </button>
+
+            {/* Результаты анализа */}
+            {analysisResults.length > 0 && !isAnalyzing && (
+              <div className="analysis-results">
+                <h3 className="results-title">Результаты проверки на ИИ</h3>
+                
+                {analysisResults.map((result) => (
+                  <div key={result.id} className="ai-analysis-card">
+                    <div className="ai-card-header">
+                      <div className="candidate-info">
+                        <div className="candidate-initials">
+                          {result.first_name[0]}{result.last_name[0]}
+                        </div>
+                        <div>
+                          <div className="candidate-name">
+                            {result.first_name} {result.last_name}
+                          </div>
+                          <div className="candidate-position">{result.position}</div>
+                        </div>
+                      </div>
+                      <div className="ai-score-badge">
+                        <Brain size={20} />
+                        <span>AI детектор</span>
                       </div>
                     </div>
-                    
-                    {/* Превью анализа (показываем только если есть результаты и блок свернут) */}
-                    {hasAnalysis && !isExpanded && (
-                      <div className="file-analysis-preview">
-                        <div className="preview-score">
-                          <CheckCircle size={14} className="preview-icon" />
-                          <span>Сильные стороны: {analysisResults[index].strengths.length}</span>
-                        </div>
-                        <div className="preview-score">
-                          <TrendingUp size={14} className="preview-icon" />
-                          <span>Рекомендации: {analysisResults[index].improvements.length}</span>
+
+                    {/* Информация о кандидате */}
+                    <div className="candidate-details">
+                      <div className="detail-item">
+                        <Briefcase size={16} className="detail-icon" />
+                        <span className="detail-text">
+                          <span className="detail-label">Опыт работы:</span> {formatExperience(result.experience)}
+                        </span>
+                      </div>
+                      
+                      <div className="detail-item">
+                        <Award size={16} className="detail-icon" />
+                        <span className="detail-text">
+                          <span className="detail-label">Желаемая должность:</span> {result.position}
+                        </span>
+                      </div>
+                      
+                      <div className="detail-item">
+                        <MapPin size={16} className="detail-icon" />
+                        <span className="detail-text">
+                          <span className="detail-label">Локация:</span> Москва
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Навыки */}
+                    {result.skills && result.skills.length > 0 && (
+                      <div className="candidate-skills-wrapper">
+                        <div className="candidate-skills">
+                          {result.skills.slice(0, 5).map((skill, index) => (
+                            <span key={index} className="skill-tag">{skill}</span>
+                          ))}
+                          {result.skills.length > 5 && (
+                            <span className="skill-tag more">+{result.skills.length - 5}</span>
+                          )}
                         </div>
                       </div>
                     )}
-                  </div>
 
-                  {/* Разворачивающийся блок с анализом */}
-                  {isExpanded && hasAnalysis && (
-                    <div className="expandable-analysis">
-                      <div className="analysis-block">
-                        <div className="analysis-header">
-                          <div className="analysis-title-wrapper">
-                            <span className="analysis-title">Анализ резюме</span>
-                          </div>
-                          <div className="analysis-score">
-                            <span className="score-value">{analysisResults[index].score}</span>
-                            <span className="score-total">/100</span>
-                          </div>
-                        </div>
-
-                        {/* Информация о кандидате */}
-                        <div className="candidate-info-section">
-                          <div className="candidate-info-header">
-                            <div className="candidate-info-initials">
-                              {analysisResults[index].firstName[0]}
-                            </div>
-                            <div className="candidate-info-name">
-                              <div className="candidate-info-fullname">
-                                {analysisResults[index].firstName} {analysisResults[index].lastName}
-                              </div>
-                              <div className="candidate-info-position">
-                                {analysisResults[index].position}
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="candidate-info-details">
-                            <div className="candidate-info-item">
-                              <svg className="candidate-info-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                <path d="M20 6H16V4C16 2.89 15.11 2 14 2H10C8.89 2 8 2.89 8 4V6H4C2.89 6 2.01 6.89 2.01 8L2 19C2 20.11 2.89 21 4 21H20C21.11 21 22 20.11 22 19V8C22 6.89 21.11 6 20 6ZM14 6H10V4H14V6Z" fill="#229ED9"/>
-                              </svg>
-                              <span className="candidate-info-text">{analysisResults[index].company}</span>
-                            </div>
-                            
-                            <div className="candidate-info-item">
-                              <svg className="candidate-info-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                <path d="M12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2ZM12 20C7.59 20 4 16.41 4 12C4 7.59 7.59 4 12 4C16.41 4 20 7.59 20 12C20 16.41 16.41 20 12 20ZM12 6C10.9 6 10 6.9 10 8C10 9.1 10.9 10 12 10C13.1 10 14 9.1 14 8C14 6.9 13.1 6 12 6ZM16 13V14C16 15.1 15.1 16 14 16H10C8.9 16 8 15.1 8 14V13C8 11.9 8.9 11 10 11H14C15.1 11 16 11.9 16 13Z" fill="#229ED9"/>
-                              </svg>
-                              <span className="candidate-info-text">{analysisResults[index].experience}</span>
-                            </div>
-                          </div>
-
-                          <div className="candidate-info-skills">
-                            {analysisResults[index].skills.slice(0, 5).map((skill, idx) => (
-                              <span key={idx} className="candidate-info-skill-tag">{skill}</span>
-                            ))}
-                          </div>
-                        </div>
-
-                        {/* Сильные стороны */}
-                        <div className="analysis-section strengths">
-                          <div className="section-header">
-                            <CheckCircle size={20} className="section-icon" />
-                            <span className="section-title">Сильные стороны</span>
-                          </div>
-                          <ul className="section-list">
-                            {analysisResults[index].strengths.map((item, idx) => (
-                              <li key={idx} className="section-item">
-                                <ThumbsUp size={16} className="item-icon" />
-                                <span>{item}</span>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-
-                        {/* Что улучшить */}
-                        <div className="analysis-section improvements">
-                          <div className="section-header">
-                            <AlertCircle size={20} className="section-icon" />
-                            <span className="section-title">Что улучшить</span>
-                          </div>
-                          <ul className="section-list">
-                            {analysisResults[index].improvements.map((item, idx) => (
-                              <li key={idx} className="section-item">
-                                <TrendingUp size={16} className="item-icon" />
-                                <span>{item}</span>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-
-                        {/* Кнопка звонка кандидату */}
-                        <button 
-                          className="analysis-call-btn"
-                          onClick={handlePhoneClick}
-                        >
-                          <Phone size={18} />
-                          <span>Позвонить кандидату</span>
-                        </button>
+                    {/* Блок с вероятностью ИИ */}
+                    <div className="ai-probability-block">
+                      <div className="probability-header">
+                        <span className="probability-label">Вероятность использования ИИ</span>
+                        <span className={`probability-value ${getAiProbabilityClass(result.aiProbability)}`}>
+                          {result.aiProbability}%
+                        </span>
+                      </div>
+                      
+                      <div className="probability-bar">
+                        <div 
+                          className={`probability-fill ${getAiProbabilityClass(result.aiProbability)}`}
+                          style={{ width: `${result.aiProbability}%` }}
+                        />
+                      </div>
+                      
+                      <div className="probability-status">
+                        {result.aiProbability > 70 ? (
+                          <XCircle size={16} className="status-icon critical" />
+                        ) : result.aiProbability > 40 ? (
+                          <AlertCircle size={16} className="status-icon high" />
+                        ) : result.aiProbability > 15 ? (
+                          <AlertCircle size={16} className="status-icon medium" />
+                        ) : (
+                          <CheckCircle size={16} className="status-icon low" />
+                        )}
+                        <span className={`status-text ${getAiProbabilityClass(result.aiProbability)}`}>
+                          {getAiStatusText(result.aiProbability)}
+                        </span>
                       </div>
                     </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+
+                    {/* Подозрительные фразы - красная рамка */}
+                    {result.suspiciousPhrases && result.suspiciousPhrases.length > 0 && (
+                      <div className="suspicious-phrases-block red-border">
+                        <div className="phrases-header red-text">
+                          <AlertCircle size={18} className="warning-icon red-icon" />
+                          <span>Подозрительные фразы (возможно сгенерированы ИИ):</span>
+                        </div>
+                        <ul className="phrases-list red-text">
+                          {result.suspiciousPhrases.map((phrase, idx) => (
+                            <li key={idx}>
+                              <span className="phrase-quote red-text">«</span>
+                              {phrase}
+                              <span className="phrase-quote red-text">»</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

@@ -1,116 +1,110 @@
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-*.egg-info/
-dist/
-build/
-*.egg
+# Зависимости
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
 
-# Виртуальные окружения
-.venv/
-venv/
-ENV/
-env/
-bot/venv/
-backend/.venv/
-backend/venv/
+# Директории с зависимостями
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Сборка и дистрибутивы
+dist/
+dist-ssr/
+build/
+*.local
 
 # Переменные окружения
 .env
 .env.local
-.env.*.local
-.env.production
-.env.development
-backend/.env
-frontend/.env
-bot/.env
-*.env
+.env.development.local
+.env.test.local
+.env.production.local
 
-# Логи
-*.log
-logs/
-backend/logs/
-bot/*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# Фронтенд
-frontend/node_modules/
-frontend/build/
-frontend/dist/
-frontend/.cache
-frontend/package-lock.json
-frontend/yarn.lock
-frontend/coverage/
-
-# Базы данных
-*.db
-*.sqlite3
-*.sqlite
-*.db-journal
-pgdata/
-redis-data/
-
-# IDE
+# IDE и редакторы
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
-.project
-.classpath
-.settings/
-*.sublime-*
-
-# OS
 .DS_Store
+.vscode/settings.json
+.vscode/tasks.json
+.vscode/launch.json
+.vscode/extensions.json
+
+# Логи
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Тесты
+coverage/
+.nyc_output/
+.react-email/
+
+# Базы данных
+*.db
+*.sqlite
+db.json
+uploads/
+
+# Временные файлы
+tmp/
+temp/
+*.tmp
+*.temp
+
+# Docker
+.docker/
+docker-compose.override.yml
+
+# Системные файлы
 Thumbs.db
 ehthumbs.db
 Desktop.ini
 $RECYCLE.BIN/
 
-# Тесты
-.coverage
-htmlcov/
-.pytest_cache/
-.tox/
-.mypy_cache/
-frontend/coverage/
-backend/.coverage
+# Файлы конфигурации приложений
+*.iml
+.idea/
+*.user
+*.useros
+*.user.scm
 
-# Docker
-*.pid
-*.seed
-*.pid.lock
-docker-compose.override.yml
-data/
-pgdata/
+# Backend specific
+backend/uploads/
+backend/db.json
+backend/node_modules/
+backend/package-lock.json
+backend/yarn.lock
+backend/.env
+backend/logs/
 
-# Secrets
+# Frontend specific
+frontend/node_modules/
+frontend/package-lock.json
+frontend/yarn.lock
+frontend/dist/
+frontend/.env
+frontend/.env.local
+frontend/build/
+
+# SSL сертификаты
 *.pem
 *.key
 *.crt
-*.p12
-secrets/
-passwords.txt
-*.secret
-*.token
+*.csr
 
-# Бэкапы
-backups/
-*.backup
-*.dump
-*.bak
-*.orig
-
-# Временные файлы
-temp/
-tmp/
-*.tmp
-*.temp
-*.cache
-*.log.*
+# Архивы
+*.zip
+*.tar
+*.gz
+*.rar
+*.7z

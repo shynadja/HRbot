@@ -1,34 +1,32 @@
 import React from 'react'
+import { Upload, FileCheck, Search, Calendar } from 'lucide-react'
 import './ActionButtons.css'
-import searchIcon from '../assets/images/search-icon.png'
-import calendarIcon from '../assets/images/calendar-icon.png'
-import clipboardIcon from '../assets/images/clipboard-icon.png'
 
 const ActionButtons = ({ onAction }) => {
   const buttons = [
     {
-      id: 'cold_search_1',
-      icon: searchIcon,
-      text: 'Холодный подбор 1',
-      subtext: 'Поиск кандидатов'
-    },
-    {
-      id: 'cold_search_2',
-      icon: searchIcon,
-      text: 'Холодный подбор 2',
-      subtext: 'Поиск кандидатов'
-    },
-    {
-      id: 'schedule_meeting',
-      icon: calendarIcon,
-      text: 'Поставить встречу',
-      subtext: 'Запланировать интервью'
+      id: 'upload_resume',
+      icon: Upload,
+      text: 'Загрузить резюме',
+      subtext: 'Добавить резюме в систему'
     },
     {
       id: 'check_resume',
-      icon: clipboardIcon,
+      icon: FileCheck,
       text: 'Проверить резюме',
-      subtext: 'Анализ резюме и рекомендации'
+      subtext: 'Детекция ИИ'
+    },
+    {
+      id: 'find_candidate',
+      icon: Search,
+      text: 'Подобрать сотрудника',
+      subtext: 'Поиск по резюме'
+    },
+    {
+      id: 'schedule_meeting',
+      icon: Calendar,
+      text: 'Поставить встречу',
+      subtext: 'Запланировать интервью'
     }
   ]
 
@@ -48,22 +46,25 @@ const ActionButtons = ({ onAction }) => {
 
   return (
     <section className="buttons-grid">
-      {buttons.map((button, index) => (
-        <button
-          key={button.id}
-          className="action-btn"
-          onClick={(e) => handleClick(button.id, e)}
-          style={{ animationDelay: `${index * 0.1}s` }}
-        >
-          <div className="btn-icon">
-            <img src={button.icon} alt={button.text} className="btn-icon-img" />
-          </div>
-          <div className="btn-content">
-            <div className="btn-text">{button.text}</div>
-            <div className="btn-subtext">{button.subtext}</div>
-          </div>
-        </button>
-      ))}
+      {buttons.map((button, index) => {
+        const Icon = button.icon
+        return (
+          <button
+            key={button.id}
+            className="action-btn"
+            onClick={(e) => handleClick(button.id, e)}
+            style={{ animationDelay: `${index * 0.1}s` }}
+          >
+            <div className="btn-icon">
+              <Icon size={28} className="btn-icon-svg" />
+            </div>
+            <div className="btn-content">
+              <div className="btn-text">{button.text}</div>
+              <div className="btn-subtext">{button.subtext}</div>
+            </div>
+          </button>
+        )
+      })}
     </section>
   )
 }

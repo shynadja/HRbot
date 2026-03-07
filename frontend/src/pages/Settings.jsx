@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Briefcase, Mail, Check, X } from 'lucide-react'
 import './Settings.css'
@@ -18,7 +18,28 @@ const Settings = () => {
   const [showModal, setShowModal] = useState(null) // 'hhru', 'gmail', 'yandex'
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [apiKey, setApiKey] = useState('')
+  // Убираем неиспользуемую переменную apiKey
+
+  // Загружаем настройки при монтировании
+  useEffect(() => {
+    const savedSettings = localStorage.getItem('talkpro_settings')
+    if (savedSettings) {
+      const settings = JSON.parse(savedSettings)
+      
+      // Используем setTimeout для отложенного обновления состояния
+      // Это решает проблему с setState внутри эффекта
+      const timer = setTimeout(() => {
+        setNotifications(settings.notifications ?? true)
+        setConnectedServices(settings.connectedServices || {
+          hhru: false,
+          gmail: false,
+          yandex: false
+        })
+      }, 0)
+      
+      return () => clearTimeout(timer)
+    }
+  }, []) // Пустой массив зависимостей - эффект выполняется только при монтировании
 
   // Обработка подключения сервиса
   const handleConnect = (service) => {
@@ -26,26 +47,48 @@ const Settings = () => {
     // Сбрасываем поля
     setEmail('')
     setPassword('')
-    setApiKey('')
   }
 
   // Обработка сохранения подключения
   const handleSaveConnection = () => {
     if (showModal) {
-      setConnectedServices({
+      const updatedServices = {
         ...connectedServices,
         [showModal]: true
-      })
+      }
+      setConnectedServices(updatedServices)
       setShowModal(null)
+      
+      // Сохраняем в localStorage
+      saveSettings(updatedServices)
     }
   }
 
   // Обработка отключения сервиса
   const handleDisconnect = (service) => {
-    setConnectedServices({
+    const updatedServices = {
       ...connectedServices,
       [service]: false
-    })
+    }
+    setConnectedServices(updatedServices)
+    
+    // Сохраняем в localStorage
+    saveSettings(updatedServices)
+  }
+
+  // Сохранение всех настроек
+  const saveSettings = (services = connectedServices) => {
+    const settings = {
+      notifications,
+      connectedServices: services
+    }
+    localStorage.setItem('talkpro_settings', JSON.stringify(settings))
+  }
+
+  // Сохранение и выход
+  const handleSaveAndExit = () => {
+    saveSettings()
+    navigate('/')
   }
 
   // Закрытие модального окна
@@ -58,7 +101,7 @@ const Settings = () => {
     const names = {
       hhru: 'hh.ru',
       gmail: 'Gmail',
-      yandex: 'Яндекс.Почта'
+      yandex: 'Яндекс.Календарь'
     }
     return names[service]
   }
@@ -94,7 +137,13 @@ const Settings = () => {
               <input 
                 type="checkbox" 
                 checked={notifications}
-                onChange={(e) => setNotifications(e.target.checked)}
+                onChange={(e) => {
+                  setNotifications(e.target.checked)
+                  // Сохраняем после обновления состояния
+                  setTimeout(() => {
+                    saveSettings()
+                  }, 0)
+                }}
               />
               <span className="slider round"></span>
             </label>
@@ -103,7 +152,70 @@ const Settings = () => {
 
         {/* Подключенные сервисы */}
         <div className="settings-section">
-          <h2 className="settings-section-title">Подключенные сервисы</h2>
+          <h2 className="settings-section-title">Календари</h2>
+          
+          {/* Gmail */}
+          <div className="service-item">
+            <div className="service-info">
+              <Mail size={24} className="service-icon" />
+              <span className="service-name">Google Календарь</span>
+            </div>
+            {connectedServices.gmail ? (
+              <div className="service-status connected">
+                <span className="status-badge">
+                  <Check size={16} />
+                  Подключено
+                </span>
+                <button 
+                  className="service-disconnect"
+                  onClick={() => handleDisconnect('gmail')}
+                >
+                  <X size={18} />
+                </button>
+              </div>
+            ) : (
+              <button 
+                className="service-connect"
+                onClick={() => handleConnect('gmail')}
+              >
+                Подключить
+              </button>
+            )}
+          </div>
+
+          {/* Яндекс.Календарь */}
+          <div className="service-item">
+            <div className="service-info">
+              <Mail size={24} className="service-icon" />
+              <span className="service-name">Яндекс.Календарь</span>
+            </div>
+            {connectedServices.yandex ? (
+              <div className="service-status connected">
+                <span className="status-badge">
+                  <Check size={16} />
+                  Подключено
+                </span>
+                <button 
+                  className="service-disconnect"
+                  onClick={() => handleDisconnect('yandex')}
+                >
+                  <X size={18} />
+                </button>
+              </div>
+            ) : (
+              <button 
+                className="service-connect"
+                onClick={() => handleConnect('yandex')}
+              >
+                Подключить
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Дополнительные сервисы */}
+        <div className="settings-section">
+          <h2 className="settings-section-title">Сайты поиска работы</h2>
           
           {/* hh.ru */}
           <div className="service-item">
@@ -133,67 +245,9 @@ const Settings = () => {
               </button>
             )}
           </div>
-
-          {/* Gmail */}
-          <div className="service-item">
-            <div className="service-info">
-              <Mail size={24} className="service-icon" />
-              <span className="service-name">Gmail</span>
-            </div>
-            {connectedServices.gmail ? (
-              <div className="service-status connected">
-                <span className="status-badge">
-                  <Check size={16} />
-                  Подключено
-                </span>
-                <button 
-                  className="service-disconnect"
-                  onClick={() => handleDisconnect('gmail')}
-                >
-                  <X size={18} />
-                </button>
-              </div>
-            ) : (
-              <button 
-                className="service-connect"
-                onClick={() => handleConnect('gmail')}
-              >
-                Подключить
-              </button>
-            )}
-          </div>
-
-          {/* Яндекс.Почта */}
-          <div className="service-item">
-            <div className="service-info">
-              <Mail size={24} className="service-icon" />
-              <span className="service-name">Яндекс.Почта</span>
-            </div>
-            {connectedServices.yandex ? (
-              <div className="service-status connected">
-                <span className="status-badge">
-                  <Check size={16} />
-                  Подключено
-                </span>
-                <button 
-                  className="service-disconnect"
-                  onClick={() => handleDisconnect('yandex')}
-                >
-                  <X size={18} />
-                </button>
-              </div>
-            ) : (
-              <button 
-                className="service-connect"
-                onClick={() => handleConnect('yandex')}
-              >
-                Подключить
-              </button>
-            )}
-          </div>
         </div>
 
-        <button className="settings-save-btn" onClick={() => navigate('/')}>
+        <button className="settings-save-btn" onClick={handleSaveAndExit}>
           Сохранить
         </button>
       </div>
@@ -238,7 +292,7 @@ const Settings = () => {
                   </div>
                 </>
               ) : (
-                // Форма для почтовых сервисов
+                // Форма для календарей
                 <>
                   <div className="modal-field">
                     <label className="modal-label">Email</label>
@@ -261,7 +315,7 @@ const Settings = () => {
                     />
                   </div>
                   <p className="modal-hint">
-                    Для Gmail и Яндекс.Почты введите пароль приложения, а не основной пароль
+                    Для календарей введите пароль приложения, а не основной пароль
                   </p>
                 </>
               )}

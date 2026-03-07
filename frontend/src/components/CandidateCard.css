@@ -2,7 +2,7 @@
   background: #24405CCF;
   border: 2px solid #229ED9;
   border-radius: 12px;
-  padding: 15px;
+  padding: 16px;
   transition: all 0.3s ease;
   animation: slideIn 0.5s ease-out backwards;
   position: relative;
@@ -30,9 +30,9 @@
 }
 
 .candidate-initials {
-  width: 40px;
-  height: 40px;
-  background: #229ED9;
+  width: 48px;
+  height: 48px;
+  background: linear-gradient(135deg, #229ED9, #4A9BD6);
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -42,6 +42,7 @@
   font-size: 18px;
   flex-shrink: 0;
   box-shadow: 0 2px 8px rgba(34, 158, 217, 0.4);
+  text-transform: uppercase;
 }
 
 .candidate-name-info {
@@ -52,7 +53,7 @@
   color: #FFFFFF;
   font-weight: 600;
   font-size: 16px;
-  margin-bottom: 2px;
+  margin-bottom: 4px;
 }
 
 .candidate-position {
@@ -62,7 +63,7 @@
 
 .candidate-details {
   margin-bottom: 12px;
-  padding-left: 52px;
+  padding-left: 60px;
 }
 
 .detail-item {
@@ -78,6 +79,7 @@
   width: 16px;
   height: 16px;
   flex-shrink: 0;
+  color: #229ED9;
   filter: drop-shadow(0 0 4px rgba(34, 158, 217, 0.4));
 }
 
@@ -91,13 +93,14 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding-left: 52px;
+  padding-left: 60px;
+  margin-bottom: 12px;
 }
 
 .candidate-skills {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
   flex: 1;
 }
 
@@ -117,7 +120,13 @@
   border-color: #229ED9;
 }
 
-/* Кнопка Подробнее с иконкой */
+.skill-tag.more {
+  background: rgba(108, 117, 125, 0.1);
+  color: #8CA0B5;
+  border-color: rgba(108, 117, 125, 0.2);
+}
+
+/* Кнопка Подробнее */
 .details-btn {
   display: flex;
   align-items: center;
@@ -135,16 +144,11 @@
   box-shadow: 0 2px 4px rgba(34, 158, 217, 0.3);
   flex-shrink: 0;
   height: 32px;
-  letter-spacing: 0.3px;
 }
 
 .details-btn:hover {
   transform: translateY(-2px);
   box-shadow: 0 5px 15px rgba(34, 158, 217, 0.4);
-}
-
-.details-btn:active {
-  transform: translateY(0);
 }
 
 .details-btn.expanded {
@@ -157,10 +161,67 @@
   box-shadow: 0 5px 15px rgba(108, 117, 125, 0.4);
 }
 
+/* Компактный AI-анализ */
+.compact-ai-analysis {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  margin-top: 8px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+  border: 1px solid rgba(34, 158, 217, 0.2);
+}
+
+.compact-ai-score {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.compact-ai-label {
+  color: #8CA0B5;
+  font-size: 12px;
+}
+
+.compact-ai-value {
+  font-size: 13px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 12px;
+}
+
+.compact-ai-value.low {
+  background: rgba(40, 167, 69, 0.15);
+  color: #28A745;
+}
+
+.compact-ai-value.medium {
+  background: rgba(255, 193, 7, 0.15);
+  color: #FFC107;
+}
+
+.compact-ai-value.high {
+  background: rgba(220, 53, 69, 0.15);
+  color: #DC3545;
+}
+
+.compact-warning {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: #DC3545;
+  font-size: 11px;
+}
+
+.compact-warning svg {
+  color: #DC3545;
+}
+
 /* Разворачивающийся блок */
 .expandable-details {
-  margin-top: 20px;
-  padding-top: 20px;
+  margin-top: 16px;
+  padding-top: 16px;
   border-top: 2px solid rgba(34, 158, 217, 0.3);
   animation: slideDown 0.3s ease-out;
 }
@@ -174,19 +235,37 @@
 }
 
 .expandable-section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   color: #FFFFFF;
   font-size: 15px;
   font-weight: 600;
   margin-bottom: 15px;
   padding-bottom: 8px;
   border-bottom: 1px solid rgba(34, 158, 217, 0.2);
-  letter-spacing: 0.3px;
+}
+
+.expandable-section-title.strengths-title {
+  color: #28A745;
+}
+
+.expandable-section-title.strengths-title svg {
+  color: #28A745;
+}
+
+.expandable-section-title.improvements-title {
+  color: #FFC107;
+}
+
+.expandable-section-title.improvements-title svg {
+  color: #FFC107;
 }
 
 .expandable-info-grid {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 }
 
 .expandable-info-item {
@@ -205,64 +284,31 @@
 .expandable-info-value {
   color: #FFFFFF;
   font-size: 13px;
-  font-weight: 500;
   flex: 1;
   line-height: 1.5;
 }
 
-/* Кнопка звонка в разворачивающемся блоке (десктоп) */
-.expandable-call-btn-desktop {
+/* Детальный AI-анализ */
+.ai-analysis-detailed {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 10px;
+  padding: 12px;
+}
+
+.ai-score-detailed,
+.ai-probability-detailed {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 8px;
-  width: 100%;
-  padding: 14px;
-  background: linear-gradient(135deg, #28A745, #34CE57);
-  border: none;
-  border-radius: 12px;
-  color: white;
-  font-size: 15px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  margin-top: 20px;
-  box-shadow: 0 2px 8px rgba(40, 167, 69, 0.4);
-}
-
-.expandable-call-btn-desktop:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 5px 15px rgba(40, 167, 69, 0.5);
-}
-
-.expandable-call-btn-desktop:active {
-  transform: translateY(0);
-}
-
-.expandable-call-btn-desktop svg {
-  filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.5));
-}
-
-/* Кнопка звонка для мобильных (будет видна только на мобильных) */
-.expandable-call-btn-mobile {
-  display: none;
-}
-
-/* Анализ в разворачивающемся блоке */
-.analysis-header {
-  display: flex;
   justify-content: space-between;
-  align-items: center;
-  margin-bottom: 15px;
+  margin-bottom: 10px;
 }
 
-.analysis-title {
-  color: #FFFFFF;
-  font-size: 16px;
-  font-weight: 600;
+.ai-label {
+  color: #8CA0B5;
+  font-size: 13px;
 }
 
-.analysis-score {
+.score-display {
   display: flex;
   align-items: baseline;
   gap: 2px;
@@ -270,58 +316,88 @@
 
 .score-value {
   color: #229ED9;
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 700;
 }
 
 .score-total {
   color: #8CA0B5;
-  font-size: 14px;
+  font-size: 12px;
 }
 
-.analysis-section {
-  margin-bottom: 15px;
+.ai-value {
+  font-size: 16px;
+  font-weight: 600;
+  padding: 2px 10px;
+  border-radius: 16px;
 }
 
-.analysis-section:last-child {
-  margin-bottom: 0;
+.ai-value.low {
+  background: rgba(40, 167, 69, 0.15);
+  color: #28A745;
 }
 
-.analysis-section .section-header {
+.ai-value.medium {
+  background: rgba(255, 193, 7, 0.15);
+  color: #FFC107;
+}
+
+.ai-value.high {
+  background: rgba(220, 53, 69, 0.15);
+  color: #DC3545;
+}
+
+.suspicious-phrases-detailed {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.phrases-header {
   display: flex;
   align-items: center;
   gap: 6px;
-  margin-bottom: 10px;
+  color: #FFC107;
+  font-size: 13px;
+  font-weight: 500;
+  margin-bottom: 8px;
 }
 
-.analysis-section.strengths .section-icon {
-  color: #28A745;
-}
-
-.analysis-section.improvements .section-icon {
+.warning-icon {
   color: #FFC107;
 }
 
-.analysis-section .section-title {
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.analysis-section.strengths .section-title {
-  color: #28A745;
-}
-
-.analysis-section.improvements .section-title {
-  color: #FFC107;
-}
-
-.analysis-section .section-list {
+.phrases-list {
   list-style: none;
   padding: 0;
   margin: 0;
 }
 
-.analysis-section .section-item {
+.phrases-list li {
+  color: #FFFFFF;
+  font-size: 12px;
+  padding: 4px 0;
+  padding-left: 20px;
+  position: relative;
+}
+
+.phrases-list li:before {
+  content: "•";
+  color: #FFC107;
+  position: absolute;
+  left: 5px;
+}
+
+/* Списки сильных сторон и улучшений */
+.strengths-list,
+.improvements-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.strength-item,
+.improvement-item {
   display: flex;
   align-items: flex-start;
   gap: 8px;
@@ -332,21 +408,132 @@
   line-height: 1.5;
 }
 
-.analysis-section .section-item:last-child {
+.strength-item:last-child,
+.improvement-item:last-child {
   border-bottom: none;
 }
 
-.analysis-section .item-icon {
+.strength-icon {
+  color: #28A745;
   flex-shrink: 0;
   margin-top: 2px;
 }
 
-.analysis-section.strengths .item-icon {
-  color: #28A745;
+.improvement-icon {
+  color: #FFC107;
+  flex-shrink: 0;
+  margin-top: 2px;
 }
 
-.analysis-section.improvements .item-icon {
-  color: #FFC107;
+/* Кнопки звонка */
+.expandable-call-btn-desktop,
+.expandable-call-btn-mobile {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 14px;
+  background: linear-gradient(135deg, #229ED9, #4A9BD6);
+  border: none;
+  border-radius: 12px;
+  color: white;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  margin-top: 20px;
+  box-shadow: 0 2px 8px rgba(34, 158, 217, 0.4);
+}
+
+.expandable-call-btn-desktop:hover,
+.expandable-call-btn-mobile:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(34, 158, 217, 0.5);
+}
+
+.expandable-call-btn-desktop svg,
+.expandable-call-btn-mobile svg {
+  filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.5));
+}
+
+/* Адаптивность */
+@media (min-width: 769px) {
+  .expandable-call-btn-mobile {
+    display: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .expandable-call-btn-desktop {
+    display: none;
+  }
+  
+  .expandable-call-btn-mobile {
+    display: flex;
+    margin-bottom: 20px;
+  }
+  
+  .expandable-info-label {
+    min-width: 70px;
+    font-size: 12px;
+  }
+  
+  .expandable-info-value {
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .candidate-card {
+    padding: 12px;
+  }
+  
+  .candidate-initials {
+    width: 40px;
+    height: 40px;
+    font-size: 16px;
+  }
+  
+  .candidate-details {
+    padding-left: 52px;
+  }
+  
+  .candidate-skills-wrapper {
+    padding-left: 52px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  
+  .candidate-skills {
+    width: 100%;
+  }
+  
+  .details-btn {
+    width: 100%;
+    justify-content: center;
+  }
+  
+  .compact-ai-analysis {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+  
+  .expandable-info-item {
+    flex-direction: column;
+    gap: 4px;
+  }
+  
+  .expandable-info-label {
+    min-width: auto;
+  }
+  
+  .expandable-call-btn-mobile {
+    padding: 12px;
+    font-size: 14px;
+  }
 }
 
 /* Анимации */
@@ -372,160 +559,151 @@
   }
 }
 
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-/* Анимация для появления карточек */
+/* Нумерация карточек для анимации */
 .candidate-card:nth-child(1) { animation-delay: 0.1s; }
 .candidate-card:nth-child(2) { animation-delay: 0.2s; }
 .candidate-card:nth-child(3) { animation-delay: 0.3s; }
 .candidate-card:nth-child(4) { animation-delay: 0.4s; }
 .candidate-card:nth-child(5) { animation-delay: 0.5s; }
 
-/* Медиа-запросы для планшетов */
-@media (max-width: 768px) {
-  .expandable-call-btn-desktop {
-    display: none; /* Скрываем на планшетах и мобильных */
-  }
-  
-  .expandable-call-btn-mobile {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    width: 100%;
-    padding: 12px;
-    background: linear-gradient(135deg, #28A745, #34CE57);
-    border: none;
-    border-radius: 12px;
-    color: white;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    margin-bottom: 20px;
-    box-shadow: 0 2px 8px rgba(40, 167, 69, 0.4);
-  }
-  
-  .expandable-call-btn-mobile:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 5px 15px rgba(40, 167, 69, 0.5);
-  }
-  
-  .expandable-call-btn-mobile:active {
-    transform: translateY(0);
-  }
-  
-  .expandable-call-btn-mobile svg {
-    filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.5));
-  }
-  
-  .expandable-info-label {
-    min-width: 70px;
-    font-size: 12px;
-  }
-  
-  .expandable-info-value {
-    font-size: 12px;
-  }
-  
-  .expandable-section-title {
-    font-size: 14px;
-  }
-  
-  .analysis-title {
-    font-size: 14px;
-  }
-  
-  .score-value {
-    font-size: 18px;
-  }
-  
-  .score-total {
-    font-size: 12px;
-  }
+.detail-label {
+  color: #8CA0B5;
+  font-weight: 400;
+  margin-right: 4px;
 }
 
-/* Медиа-запросы для мобильных устройств */
+.external-icon {
+  opacity: 0.7;
+  transition: opacity 0.3s ease;
+}
+
+.expandable-call-btn-desktop:hover .external-icon,
+.expandable-call-btn-mobile:hover .external-icon {
+  opacity: 1;
+}
+
+/* Улучшаем отображение списков */
+.strengths-list,
+.improvements-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.strength-item,
+.improvement-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  color: #FFFFFF;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.strength-item:last-child,
+.improvement-item:last-child {
+  border-bottom: none;
+}
+
+.strength-icon {
+  color: #28A745;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.improvement-icon {
+  color: #FFC107;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+/* Убираем отображение телефона */
+.candidate-details .detail-item:has(.detail-text:contains("Телефон")) {
+  display: none;
+}
+
+/* Адаптация для мобильных */
 @media (max-width: 480px) {
-  .candidate-card {
-    padding: 12px;
-  }
-  
-  .candidate-initials {
-    width: 36px;
-    height: 36px;
-    font-size: 16px;
-  }
-  
-  .candidate-details {
-    padding-left: 48px;
-  }
-  
-  .candidate-fullname {
-    font-size: 15px;
-  }
-  
-  .candidate-position {
-    font-size: 12px;
-  }
-  
-  .candidate-skills-wrapper {
-    padding-left: 48px;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 10px;
-  }
-  
-  .candidate-skills {
-    width: 100%;
-  }
-  
-  .details-btn {
-    width: 100%;
-    justify-content: center;
-    height: 36px;
-  }
-  
-  .expandable-details {
-    margin-top: 15px;
-    padding-top: 15px;
-  }
-  
-  .expandable-info-label {
-    min-width: 70px;
-    font-size: 12px;
-  }
-  
-  .expandable-info-value {
-    font-size: 12px;
-  }
-  
-  .analysis-section .section-item {
-    font-size: 12px;
-    padding: 6px 0;
-  }
-  
+  .expandable-call-btn-desktop,
   .expandable-call-btn-mobile {
-    padding: 12px;
     font-size: 14px;
-    margin-bottom: 15px;
+    padding: 12px;
+  }
+  
+  .external-icon {
+    width: 12px;
+    height: 12px;
   }
 }
 
-/* Темная тема (если будет использоваться) */
-@media (prefers-color-scheme: dark) {
-  .candidate-card {
-    background: #1A2632;
+/* Стили для подозрительных фраз */
+.suspicious-phrases-block.red-border {
+  border: 2px solid #DC3545;
+  background: rgba(220, 53, 69, 0.05);
+  border-radius: 12px;
+  padding: 15px;
+  margin-bottom: 20px;
+}
+
+.phrases-header.red-text {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #DC3545;
+  font-size: 14px;
+  font-weight: 500;
+  margin-bottom: 12px;
+}
+
+.warning-icon.red-icon {
+  color: #DC3545;
+}
+
+.phrases-list.red-text {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.phrases-list.red-text li {
+  color: #DC3545;
+  font-size: 14px;
+  padding: 8px 0;
+  padding-left: 24px;
+  position: relative;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  line-height: 1.5;
+}
+
+.phrases-list.red-text li:last-child {
+  border-bottom: none;
+}
+
+.phrases-list.red-text li:before {
+  content: "•";
+  color: #DC3545;
+  position: absolute;
+  left: 8px;
+  font-size: 18px;
+}
+
+.phrase-quote.red-text {
+  color: #DC3545;
+  font-size: 14px;
+  margin: 0 2px;
+}
+
+/* Адаптация для мобильных */
+@media (max-width: 480px) {
+  .phrases-list.red-text li {
+    font-size: 13px;
+    padding-left: 20px;
   }
   
-  .candidate-card.expanded {
-    background: #1E2A36;
+  .phrases-list.red-text li:before {
+    font-size: 16px;
+    left: 5px;
   }
 }

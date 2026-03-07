@@ -1,17 +1,27 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Calendar, Clock, Users, CheckCircle } from 'lucide-react';
-import Notification from '../components/Notification';
 import './ScheduleMeeting.css';
 
 const ScheduleMeeting = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [isCreating, setIsCreating] = useState(false);
   const [showNotification, setShowNotification] = useState(false);
   
   const [meetingDate, setMeetingDate] = useState('');
   const [meetingTime, setMeetingTime] = useState('');
   const [participants, setParticipants] = useState('');
+
+  // Заполняем данные, если переданы из другого компонента
+  useEffect(() => {
+    if (location.state) {
+      const { candidate, position } = location.state;
+      if (candidate && position) {
+        setParticipants(`${candidate} (${position})`);
+      }
+    }
+  }, [location.state]);
 
   const isFormValid = meetingDate && meetingTime && participants.trim();
 

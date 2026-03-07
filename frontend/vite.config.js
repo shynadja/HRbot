@@ -6,7 +6,7 @@ export default defineConfig({
   plugins: [react()],
   server: {
     allowedHosts: [
-      'https://talkpro-frontend.loca.lt',  // ваш текущий URL
+      'http://localhost:3000',  // ваш текущий URL
       '.loca.lt'  // разрешить все поддомены loca.lt
     ],
     port: 3000,              // Фиксированный порт
@@ -14,7 +14,7 @@ export default defineConfig({
     host: true,               // Слушать на всех сетевых интерфейсах
     proxy: {
       '/api': {
-        target: 'https://talkpro-backend.loca.lt',  // Бэкенд
+        target: 'http://localhost:3001/api',  // Бэкенд
         changeOrigin: true,
         secure: false,
       }
@@ -26,8 +26,7 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: {
-          vendor: ['react', 'react-dom'],  // Разделение кода
-          telegram: ['@telegram-apps/sdk']
+          vendor: ['react', 'react-dom']  // Разделение кода
         }
       }
     }

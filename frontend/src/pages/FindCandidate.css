@@ -1,0 +1,577 @@
+.find-candidate-content {
+  padding: 20px;
+  max-height: calc(100vh - 120px);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #229ED9 #182533;
+}
+
+.find-candidate-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.find-candidate-content::-webkit-scrollbar-track {
+  background: #182533;
+  border-radius: 10px;
+}
+
+.find-candidate-content::-webkit-scrollbar-thumb {
+  background: #229ED9;
+  border-radius: 10px;
+}
+
+.search-description {
+  color: #8CA0B5;
+  font-size: 14px;
+  line-height: 1.5;
+  margin-bottom: 20px;
+  text-align: left;
+}
+
+/* Поле ввода */
+.search-input-wrapper {
+  position: relative;
+  margin-bottom: 20px;
+}
+
+.search-input {
+  width: 100%;
+  padding: 15px 50px 15px 15px;
+  background: #17212B;
+  border: 2px solid #229ED9;
+  border-radius: 12px;
+  color: #FFFFFF;
+  font-size: 16px;
+  font-family: inherit;
+  outline: none;
+  transition: all 0.3s ease;
+  box-sizing: border-box;
+}
+
+.search-input:focus {
+  border-color: #4A9BD6;
+  box-shadow: 0 0 15px rgba(34, 158, 217, 0.3);
+}
+
+.search-input.has-text {
+  border-color: #4A9BD6;
+}
+
+.search-icon {
+  position: absolute;
+  right: 15px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #229ED9;
+  opacity: 0.7;
+  transition: all 0.3s ease;
+  filter: drop-shadow(0 0 4px rgba(34, 158, 217, 0.4));
+}
+
+.search-input:focus + .search-icon,
+.search-input.has-text + .search-icon {
+  opacity: 1;
+  filter: drop-shadow(0 0 8px rgba(34, 158, 217, 0.8));
+}
+
+/* Селектор резюме */
+.resume-selector-section {
+  margin-bottom: 20px;
+  border: 2px solid #229ED9;
+  border-radius: 12px;
+  background: #17212B;
+  overflow: hidden;
+}
+
+.resume-selector-header {
+  width: 100%;
+  padding: 15px;
+  background: #1E3A5F;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.resume-selector-header:hover {
+  background: #24405C;
+}
+
+.resume-selector-header.active {
+  background: #24405C;
+  border-bottom: 1px solid rgba(34, 158, 217, 0.2);
+}
+
+.selector-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #FFFFFF;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.selector-title svg {
+  color: #229ED9;
+}
+
+.selector-info {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  color: #8CA0B5;
+}
+
+.selected-count {
+  background: rgba(34, 158, 217, 0.15);
+  padding: 4px 10px;
+  border-radius: 20px;
+  color: #229ED9;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.resume-selector-dropdown {
+  padding: 15px;
+  background: #182533;
+  animation: slideDown 0.3s ease-out;
+}
+
+.selector-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 15px;
+}
+
+.select-all-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 15px;
+  background: rgba(34, 158, 217, 0.1);
+  border: 1px solid #229ED9;
+  border-radius: 8px;
+  color: #FFFFFF;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.select-all-btn:hover {
+  background: rgba(34, 158, 217, 0.2);
+}
+
+.select-all-btn svg {
+  color: #229ED9;
+}
+
+.selector-hint {
+  color: #8CA0B5;
+  font-size: 12px;
+}
+
+.resume-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.resume-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px;
+  background: #17212B;
+  border: 1px solid rgba(34, 158, 217, 0.3);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.resume-item:hover {
+  background: #1E3A5F;
+  transform: translateX(5px);
+  border-color: #229ED9;
+}
+
+.resume-item.selected {
+  background: rgba(34, 158, 217, 0.15);
+  border-color: #229ED9;
+}
+
+.resume-checkbox {
+  width: 18px;
+  height: 18px;
+  border: 2px solid #229ED9;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.resume-checkbox svg {
+  color: #229ED9;
+}
+
+.resume-icon {
+  color: #229ED9;
+  flex-shrink: 0;
+}
+
+.resume-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.resume-name {
+  color: #FFFFFF;
+  font-size: 14px;
+  font-weight: 500;
+  margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.resume-meta {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: #8CA0B5;
+  font-size: 12px;
+  margin-bottom: 6px;
+}
+
+.resume-skills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.resume-skill-tag {
+  background: rgba(34, 158, 217, 0.1);
+  color: #229ED9;
+  padding: 2px 6px;
+  border-radius: 12px;
+  font-size: 10px;
+  border: 1px solid rgba(34, 158, 217, 0.2);
+}
+
+.resume-skill-tag.more {
+  background: rgba(108, 117, 125, 0.1);
+  color: #8CA0B5;
+}
+
+.no-resumes {
+  text-align: center;
+  padding: 30px 20px;
+  color: #8CA0B5;
+}
+
+.no-resumes p {
+  margin-bottom: 15px;
+}
+
+.upload-resume-link {
+  background: linear-gradient(135deg, #229ED9, #4A9BD6);
+  border: none;
+  border-radius: 8px;
+  padding: 10px 20px;
+  color: white;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.upload-resume-link:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(34, 158, 217, 0.3);
+}
+
+/* Кнопка поиска */
+.search-button {
+  width: 100%;
+  padding: 15px;
+  background: #24405CCF;
+  border: none;
+  border-radius: 12px;
+  color: #FFFFFF;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 3px #229ED9;
+}
+
+.search-button.active {
+  background: linear-gradient(135deg, #229ED9, #4A9BD6);
+  box-shadow: 0 5px 15px rgba(34, 158, 217, 0.3);
+}
+
+.search-button.active:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 20px rgba(34, 158, 217, 0.4);
+}
+
+.search-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: 0 2px 3px #229ED9;
+}
+
+/* Информация о выбранных резюме */
+.selected-info {
+  text-align: center;
+  color: #8CA0B5;
+  font-size: 14px;
+  margin-bottom: 20px;
+  padding: 15px;
+  background: #182533;
+  border-radius: 12px;
+  border: 1px dashed #229ED9;
+}
+
+.selected-info strong {
+  color: #229ED9;
+  font-size: 18px;
+}
+
+.info-hint {
+  margin-top: 8px;
+  font-size: 13px;
+  color: #5F7A95;
+}
+
+/* Информация о поиске */
+.search-info {
+  background: #1E3A5F;
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 20px;
+  font-size: 13px;
+  color: #8CA0B5;
+  border: 1px solid rgba(34, 158, 217, 0.3);
+}
+
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.info-row strong {
+  color: #229ED9;
+}
+
+/* Ошибка */
+.error-message {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #ff6b6b;
+  background-color: rgba(255, 107, 107, 0.1);
+  padding: 15px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  border: 1px solid #ff6b6b;
+}
+
+.error-message svg {
+  flex-shrink: 0;
+  color: #ff6b6b;
+}
+
+/* Индикатор загрузки */
+.loading-indicator {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  color: #229ED9;
+}
+
+.spinner {
+  width: 50px;
+  height: 50px;
+  border: 4px solid #24405CCF;
+  border-top: 4px solid #229ED9;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 20px;
+}
+
+.loading-hint {
+  font-size: 13px;
+  color: #8CA0B5;
+  margin-top: 10px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Результаты поиска */
+.results-count {
+  color: #229ED9;
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 20px;
+  text-align: left;
+  animation: fadeIn 0.6s ease-out;
+}
+
+.candidates-list {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  animation: fadeIn 0.8s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Адаптация под мобильные устройства */
+@media (max-width: 768px) {
+  .info-row {
+    flex-direction: column;
+    gap: 5px;
+  }
+}
+
+@media (max-width: 480px) {
+  .find-candidate-content {
+    padding: 15px;
+  }
+  
+  .search-input {
+    padding: 12px 45px 12px 12px;
+    font-size: 14px;
+  }
+  
+  .search-button {
+    padding: 12px;
+    font-size: 15px;
+  }
+  
+  .resume-selector-header {
+    padding: 12px;
+  }
+  
+  .selector-title {
+    font-size: 14px;
+  }
+  
+  .selector-title svg {
+    width: 18px;
+    height: 18px;
+  }
+  
+  .selected-count {
+    font-size: 12px;
+  }
+  
+  .resume-item {
+    padding: 10px;
+  }
+  
+  .resume-name {
+    font-size: 13px;
+  }
+  
+  .resume-meta {
+    font-size: 11px;
+  }
+  
+  .selector-actions {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  
+  .select-all-btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* Стили для оценки в правом верхнем углу */
+.candidate-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+  position: relative;
+}
+
+.candidate-score {
+  margin-left: auto;
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  min-width: 70px;
+  background: rgba(34, 158, 217, 0.1);
+  padding: 4px 10px;
+  border-radius: 20px;
+  border: 1px solid rgba(34, 158, 217, 0.3);
+}
+
+.score-value-header {
+  font-size: 20px;
+  font-weight: 700;
+  color: #229ED9;
+  line-height: 1;
+}
+
+.score-max {
+  font-size: 12px;
+  color: #8CA0B5;
+  margin-left: 2px;
+}
+
+/* Убираем дублирующуюся оценку из AI-анализа */
+.ai-score-detailed {
+  display: none;
+}
+
+/* Адаптация для мобильных */
+@media (max-width: 480px) {
+  .candidate-score {
+    min-width: 60px;
+    padding: 2px 8px;
+  }
+  
+  .score-value-header {
+    font-size: 18px;
+  }
+  
+  .score-max {
+    font-size: 10px;
+  }
+}
