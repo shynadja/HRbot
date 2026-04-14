@@ -3,7 +3,7 @@ import time
 import random
 from typing import Dict, Any, List
 from datetime import datetime
-from .yandex_calendar_real import YandexCalendarRealClient
+from .yandex_calendar import YandexCalendarRealClient
 from .mock_client import MockYandexCalendarClient  # добавлен импорт
 
 class YandexCalendarQueueClient:

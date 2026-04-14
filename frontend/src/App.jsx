@@ -1,10 +1,12 @@
 import React from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { Provider } from 'react-redux'
 import Login from './pages/Login'
 import MainApp from './pages/MainApp'
 import AdminPanel from './pages/AdminPanel'
 import { AuthProvider } from './context/AuthContext'
 import { useAuth } from './hooks/useAuth'
+import { store } from './store'
 import './App.css'
 
 function AppRoutes() {
@@ -45,11 +47,13 @@ function AppRoutes() {
 
 function App() {
   return (
-    <BrowserRouter>
-      <AuthProvider>
-        <AppRoutes />
-      </AuthProvider>
-    </BrowserRouter>
+    <Provider store={store}>
+      <BrowserRouter>
+        <AuthProvider>
+          <AppRoutes />
+        </AuthProvider>
+      </BrowserRouter>
+    </Provider>
   )
 }
 

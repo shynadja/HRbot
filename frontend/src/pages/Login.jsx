@@ -43,7 +43,7 @@ const Login = () => {
   // Для быстрого тестирования
   const fillDemoCredentials = (role) => {
     if (role === 'user') {
-      setEmail('user@example.com')
+      setEmail('user1@example.com')
       setPassword('user123')
     } else {
       setEmail('admin@example.com')

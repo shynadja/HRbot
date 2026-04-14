@@ -707,3 +707,180 @@
     left: 5px;
   }
 }
+
+/* Стили для статус-иконок */
+.status-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.status-icon.critical {
+  color: #FF4444;
+}
+
+.status-icon.high {
+  color: #DC3545;
+}
+
+.status-icon.medium {
+  color: #FFC107;
+}
+
+.status-icon.low {
+  color: #28A745;
+}
+
+/* Компактное предупреждение */
+.compact-warning {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #8CA0B5;
+  font-size: 12px;
+}
+
+.compact-warning .status-icon.critical ~ span {
+  color: #FF4444;
+}
+
+.compact-warning .status-icon.high ~ span {
+  color: #DC3545;
+}
+
+.compact-warning .status-icon.medium ~ span {
+  color: #FFC107;
+}
+
+.compact-warning .status-icon.low ~ span {
+  color: #28A745;
+}
+
+.ai-probability-block.compact-block {
+  background: #17212B;
+  border-radius: 12px;
+  padding: 15px;
+  margin-top: 12px;
+}
+
+.probability-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.probability-label {
+  color: #8CA0B5;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.probability-value {
+  font-size: 22px;
+  font-weight: 700;
+  padding: 4px 12px;
+  border-radius: 20px;
+}
+
+.probability-value.low {
+  background: rgba(40, 167, 69, 0.15);
+  color: #28A745;
+}
+
+.probability-value.medium {
+  background: rgba(255, 193, 7, 0.15);
+  color: #FFC107;
+}
+
+.probability-value.high {
+  background: rgba(220, 53, 69, 0.15);
+  color: #DC3545;
+}
+
+.probability-value.critical {
+  background: rgba(153, 0, 0, 0.2);
+  color: #FF4444;
+}
+
+.probability-bar {
+  height: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  margin-bottom: 12px;
+  overflow: hidden;
+}
+
+.probability-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.5s ease;
+}
+
+.probability-fill.low {
+  background: linear-gradient(90deg, #28A745, #5cb85c);
+}
+
+.probability-fill.medium {
+  background: linear-gradient(90deg, #FFC107, #ffdb58);
+}
+
+.probability-fill.high {
+  background: linear-gradient(90deg, #DC3545, #ff6b6b);
+}
+
+.probability-fill.critical {
+  background: linear-gradient(90deg, #8B0000, #FF4444);
+}
+
+.probability-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.status-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.status-icon.critical {
+  color: #FF4444;
+}
+
+.status-icon.high {
+  color: #DC3545;
+}
+
+.status-icon.medium {
+  color: #FFC107;
+}
+
+.status-icon.low {
+  color: #28A745;
+}
+
+.status-text {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.status-text.critical {
+  color: #FF4444;
+}
+
+.status-text.high {
+  color: #DC3545;
+}
+
+.status-text.medium {
+  color: #FFC107;
+}
+
+.status-text.low {
+  color: #28A745;
+}
+
+/* Убираем старые стили компактного анализа */
+.compact-ai-analysis {
+  display: none;
+}

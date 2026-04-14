@@ -1,6 +1,33 @@
-fastapi
-uvicorn
-python-dotenv
-httpx
-aiohttp
-gigachat
+# Core
+fastapi>=0.104.1
+uvicorn[standard]>=0.24.0
+pydantic>=2.5.0
+python-dotenv>=1.0.0
+
+# Database
+sqlalchemy>=2.0.23
+psycopg2-binary>=2.9.9
+alembic>=1.12.1
+
+# Redis & Caching
+redis>=5.0.1
+
+# HTTP Clients
+httpx>=0.25.1
+aiohttp>=3.9.0
+
+# PDF & Document Parsing
+pypdf>=3.17.0
+mammoth>=1.6.0
+python-docx>=1.1.0
+
+# Data Processing
+numpy>=1.24.3
+pandas>=2.0.3
+
+# Security
+bcrypt>=4.1.1
+python-multipart>=0.0.6
+
+# Utils
+aiofiles>=23.2.1

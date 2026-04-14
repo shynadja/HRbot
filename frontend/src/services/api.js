@@ -1,24 +1,196 @@
 import axios from 'axios'
 
-const API_URL = import.meta.env.VITE_API_URL
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001'
+
+// Кэш персональных данных на клиенте
+const personalDataCache = new Map()
+
+/**
+ * Сохранение персональных данных в кэш клиента
+ */
+export const cachePersonalData = (candidateUuid, data) => {
+  personalDataCache.set(candidateUuid, {
+    first_name: data.first_name,
+    last_name: data.last_name,
+    full_name: data.full_name,
+    email: data.email,
+    phone: data.phone
+  })
+}
+
+/**
+ * Получение всех закэшированных персональных данных
+ */
+export const getPersonalDataCache = () => {
+  const cache = {}
+  personalDataCache.forEach((value, key) => {
+    cache[key] = value
+  })
+  return cache
+}
+
+/**
+ * Очистка кэша персональных данных
+ */
+export const clearPersonalDataCache = () => {
+  personalDataCache.clear()
+}
 
 export const api = {
-  // Получение данных пользователя
-  getUser: async (userId) => {
+  // ========== Аутентификация ==========
+  
+  /**
+   * Вход в систему
+   */
+  login: async (email, password) => {
     try {
-      const response = await axios.get(`${API_URL}/user/${userId}`)
+      const response = await axios.post(`${API_URL}/login`, { email, password })
       return response.data
     } catch (error) {
-      console.error('Error getting user:', error)
+      console.error('Login error:', error)
+      throw new Error(error.response?.data?.error || 'Ошибка при входе в систему')
+    }
+  },
+
+  // ========== Health Check ==========
+  
+  /**
+   * Проверка состояния сервера и AI сервисов
+   */
+  healthCheck: async () => {
+    try {
+      const response = await axios.get(`${API_URL}/health`)
+      return response.data
+    } catch (error) {
+      console.error('Health check error:', error)
+      return { status: 'error', services: { node: 'unknown', ai_services: 'unknown' } }
+    }
+  },
+
+  // ========== AI Сервисы (прокси) ==========
+  
+  /**
+   * Оценка кандидата через Single Agent
+   */
+  evaluateCandidate: async (candidateData) => {
+    try {
+      const response = await axios.post(`${API_URL}/ai/evaluate`, candidateData)
+      return response.data
+    } catch (error) {
+      console.error('Error evaluating candidate:', error)
       throw error
     }
   },
+
+  /**
+   * Пакетная оценка кандидатов
+   */
+  evaluateBatch: async (candidates) => {
+    try {
+      const response = await axios.post(`${API_URL}/ai/evaluate/batch`, { candidates })
+      return response.data
+    } catch (error) {
+      console.error('Error in batch evaluation:', error)
+      throw error
+    }
+  },
+
+  /**
+   * Детекция ИИ в тексте
+   */
+  detectAI: async (text, promptKey = 'check_ai_generated') => {
+    try {
+      const response = await axios.post(`${API_URL}/ai/detect-ai`, { text, prompt_key: promptKey })
+      return response.data
+    } catch (error) {
+      console.error('Error detecting AI:', error)
+      throw error
+    }
+  },
+
+  /**
+   * Поиск преувеличений в тексте
+   */
+  findExaggerations: async (text) => {
+    try {
+      const response = await axios.post(`${API_URL}/ai/find-exaggerations`, { 
+        text, 
+        prompt_key: 'find_exaggerations' 
+      })
+      return response.data
+    } catch (error) {
+      console.error('Error finding exaggerations:', error)
+      throw error
+    }
+  },
+
+  /**
+   * Создание события в календаре
+   */
+  createCalendarEvent: async (eventData) => {
+    try {
+      console.log('Sending calendar event request:', eventData)
+      
+      const response = await axios.post(`${API_URL}/ai/calendar/create`, eventData, {
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      })
+      
+      return response.data
+    } catch (error) {
+      console.error('Error creating calendar event:', error)
+      if (error.response) {
+        console.error('Response error data:', error.response.data)
+        console.error('Response error status:', error.response.status)
+      }
+      throw error
+    }
+  },
+
+  /**
+   * Проверка состояния AI сервисов
+   */
+  aiHealthCheck: async () => {
+    try {
+      const response = await axios.get(`${API_URL}/ai/health`)
+      return response.data
+    } catch (error) {
+      console.error('AI health check error:', error)
+      return { status: 'unavailable' }
+    }
+  },
+
+  /**
+   * Получение статистики AI сервисов
+   */
+  getAIStats: async () => {
+    try {
+      const response = await axios.get(`${API_URL}/ai/stats`)
+      return response.data
+    } catch (error) {
+      console.error('Error getting AI stats:', error)
+      return null
+    }
+  },
+
+  /**
+   * Получение статистики использования токенов
+   */
+  getTokenStats: async () => {
+    try {
+      const response = await axios.get(`${API_URL}/ai/stats/tokens`)
+      return response.data
+    } catch (error) {
+      console.error('Error getting token stats:', error)
+      return null
+    }
+  },
+
+  // ========== Логирование ==========
   
-  // Логирование действия
   /**
    * Логирование действия пользователя
-   * @param {Object} logData - данные для логирования
-   * @returns {Promise} - промис с результатом
    */
   logAction: async (logData) => {
     try {
@@ -26,97 +198,49 @@ export const api = {
       return response.data
     } catch (error) {
       console.error('Error logging action:', error)
-      // Не бросаем ошибку, чтобы не прерывать основной поток
       return { success: false }
     }
   },
-  
-  // Получение статистики
-  getStats: async () => {
-    try {
-      const response = await axios.get(`${API_URL}/stats`)
-      return response.data
-    } catch (error) {
-      console.error('Error getting stats:', error)
-      throw error
-    }
-  },
 
-  // Холодный поиск кандидатов
-  coldSearch: async (query, userId = 'anonymous', limit = 10) => {
-    try {
-      const response = await axios.post(`${API_URL}/search`, {
-        query,
-        user_id: userId,
-        limit
-      })
-      return response.data
-    } catch (error) {
-      console.error('Error in cold search:', error)
-      throw error
-    }
-  },
-
-  // Получение результатов сохраненного поиска
-  getSearchResults: async (queryId, includeAll = false) => {
-    try {
-      const response = await axios.get(`${API_URL}/search/${queryId}/results`, {
-        params: { include_all: includeAll }
-      })
-      return response.data
-    } catch (error) {
-      console.error('Error getting search results:', error)
-      throw error
-    }
-  },
-
-  // Получение анализа кандидата
-  getCandidateAnalysis: async (candidateId, query) => {
-    try {
-      const response = await axios.get(`${API_URL}/candidate/${candidateId}/analysis`, {
-        params: { query }
-      })
-      return response.data
-    } catch (error) {
-      console.error('Error getting candidate analysis:', error)
-      throw error
-    }
-  },
-
-  // Статистика кеша
-  getCacheStats: async () => {
-    try {
-      const response = await axios.get(`${API_URL}/cache/stats`)
-      return response.data
-    } catch (error) {
-      console.error('Error getting cache stats:', error)
-      throw error
-    }
-  },
+  // ========== Резюме ==========
 
   /**
    * Загрузка резюме на сервер
-   * @param {File} file - файл резюме
-   * @param {Object} userData - данные пользователя
-   * @returns {Promise} - промис с результатом загрузки
    */
-  uploadResume: async (file, userData) => {
+  uploadResume: async (file, userData, personalData = null) => {
     const formData = new FormData()
     formData.append('file', file)
     formData.append('fileName', file.name)
     formData.append('userId', userData?.id || 'anonymous')
     formData.append('userName', userData?.name || '')
     
+    if (personalData) {
+      formData.append('personalData', JSON.stringify(personalData))
+    }
+    
     try {
       const response = await axios.post(`${API_URL}/resumes/upload`, formData, {
         headers: {
-          // 'Accept': 'application/json',
+          'Content-Type': 'multipart/form-data'
         },
         onUploadProgress: (progressEvent) => {
           const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total)
           console.log(`Upload progress: ${percentCompleted}%`)
         }
       })
+      
+      // Кэшируем персональные данные если есть
+      if (response.data.candidate?.email && personalData) {
+        const cacheKey = `${response.data.candidate.first_name}_${response.data.candidate.last_name}_${response.data.id}`
+        cachePersonalData(cacheKey, {
+          first_name: response.data.candidate.first_name,
+          last_name: response.data.candidate.last_name,
+          full_name: response.data.candidate.full_name,
+          email: response.data.candidate.email,
+          phone: response.data.candidate.phone
+        })
+      }
+      
       return response.data
     } catch (error) {
       console.error('Error uploading resume:', error)
@@ -126,8 +250,6 @@ export const api = {
 
   /**
    * Получение списка всех резюме для пользователя
-   * @param {string} userId - ID пользователя
-   * @returns {Promise} - промис со списком резюме
    */
   getResumes: async (userId) => {
     try {
@@ -142,7 +264,6 @@ export const api = {
 
   /**
    * Получение всех резюме (включая удаленные) - для админа
-   * @returns {Promise} - промис со списком всех резюме
    */
   getAllResumes: async () => {
     try {
@@ -156,8 +277,6 @@ export const api = {
 
   /**
    * Получение конкретного резюме по ID
-   * @param {number|string} resumeId - ID резюме
-   * @returns {Promise} - промис с данными резюме
    */
   getResumeById: async (resumeId) => {
     try {
@@ -170,9 +289,14 @@ export const api = {
   },
 
   /**
+   * Просмотр файла резюме
+   */
+  viewResume: (resumeId) => {
+    return `${API_URL}/resumes/${resumeId}/view`
+  },
+
+  /**
    * Мягкое удаление резюме (помечается как удаленное)
-   * @param {number|string} resumeId - ID резюме
-   * @returns {Promise} - промис с результатом удаления
    */
   deleteResume: async (resumeId) => {
     try {
@@ -186,8 +310,6 @@ export const api = {
 
   /**
    * Полное удаление резюме (для админа)
-   * @param {number|string} resumeId - ID резюме
-   * @returns {Promise} - промис с результатом удаления
    */
   permanentDeleteResume: async (resumeId) => {
     try {
@@ -201,8 +323,6 @@ export const api = {
 
   /**
    * Восстановление удаленного резюме (для админа)
-   * @param {number|string} resumeId - ID резюме
-   * @returns {Promise} - промис с результатом восстановления
    */
   restoreResume: async (resumeId) => {
     try {
@@ -215,14 +335,11 @@ export const api = {
   },
 
   /**
-   * Анализ резюме
-   * @param {number|string} resumeId - ID резюме
-   * @param {Object} options - опции анализа
-   * @returns {Promise} - промис с результатами анализа
+   * Анализ резюме на ИИ и преувеличения
    */
-  analyzeResume: async (resumeId, options = {}) => {
+  analyzeResume: async (resumeId) => {
     try {
-      const response = await axios.post(`${API_URL}/resumes/${resumeId}/analyze`, options)
+      const response = await axios.post(`${API_URL}/resumes/${resumeId}/analyze`)
       return response.data
     } catch (error) {
       console.error('Error analyzing resume:', error)
@@ -230,33 +347,18 @@ export const api = {
     }
   },
 
-  /**
-   * Пакетный анализ нескольких резюме
-   * @param {Array} resumeIds - массив ID резюме
-   * @returns {Promise} - промис с результатами анализа
-   */
-  analyzeMultipleResumes: async (resumeIds) => {
-    try {
-      const response = await axios.post(`${API_URL}/resumes/analyze-batch`, { resume_ids: resumeIds })
-      return response.data
-    } catch (error) {
-      console.error('Error analyzing multiple resumes:', error)
-      throw error
-    }
-  },
+  // ========== Поиск кандидатов ==========
 
   /**
-   * Поиск кандидатов по резюме
-   * @param {string} query - поисковый запрос
-   * @param {Array} resumeIds - массив ID резюме для поиска
-   * @returns {Promise} - промис с результатами поиска
+   * Поиск кандидатов по резюме с AI-анализом
    */
-  searchCandidates: async (query, resumeIds) => {
+  searchCandidates: async (query, resumeIds, userId = null) => {
     try {
       const response = await axios.post(`${API_URL}/candidates/search`, {
         query,
         resume_ids: resumeIds,
-        limit: 20
+        userId,
+        personal_data_cache: getPersonalDataCache()
       })
       return response.data
     } catch (error) {
@@ -265,85 +367,17 @@ export const api = {
     }
   },
 
-  /**
-   * Обновление информации о кандидате из резюме
-   * @param {number|string} resumeId - ID резюме
-   * @param {Object} candidateData - обновленные данные кандидата
-   * @returns {Promise} - промис с результатом обновления
-   */
-  updateCandidateInfo: async (resumeId, candidateData) => {
-    try {
-      const response = await axios.put(`${API_URL}/resumes/${resumeId}/candidate`, candidateData)
-      return response.data
-    } catch (error) {
-      console.error('Error updating candidate info:', error)
-      throw error
-    }
-  },
-
-  /**
-   * Получение статистики по резюме
-   * @returns {Promise} - промис со статистикой
-   */
-  getResumeStats: async () => {
-    try {
-      const response = await axios.get(`${API_URL}/resumes/stats`)
-      return response.data
-    } catch (error) {
-      console.error('Error getting resume stats:', error)
-      throw error
-    }
-  },
-
-  /**
-   * Экспорт резюме в различных форматах
-   * @param {number|string} resumeId - ID резюме
-   * @param {string} format - формат экспорта (pdf, docx, txt)
-   * @returns {Promise} - промис с blob данными файла
-   */
-  exportResume: async (resumeId, format = 'pdf') => {
-    try {
-      const response = await axios.get(`${API_URL}/resumes/${resumeId}/export`, {
-        params: { format },
-        responseType: 'blob'
-      })
-      return response.data
-    } catch (error) {
-      console.error('Error exporting resume:', error)
-      throw error
-    }
-  },
-
-  /**
-   * Сравнение нескольких резюме
-   * @param {Array} resumeIds - массив ID резюме для сравнения
-   * @returns {Promise} - промис с результатами сравнения
-   */
-  compareResumes: async (resumeIds) => {
-    try {
-      const response = await axios.post(`${API_URL}/resumes/compare`, { resume_ids: resumeIds })
-      return response.data
-    } catch (error) {
-      console.error('Error comparing resumes:', error)
-      throw error
-    }
-  },
+  // ========== Обратная связь ==========
 
   /**
    * Отправка обратной связи
-   * @param {Object} feedbackData - данные обратной связи
-   * @param {string} feedbackData.message - сообщение
-   * @param {string} feedbackData.userId - ID пользователя
-   * @param {string} feedbackData.userName - имя пользователя
-   * @param {string} feedbackData.userEmail - email пользователя
-   * @param {string} feedbackData.userRole - роль пользователя
-   * @returns {Promise} - промис с результатом отправки
    */
   sendFeedback: async (feedbackData) => {
     try {
       const response = await axios.post(`${API_URL}/feedback`, feedbackData, {
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'X-Session-ID': sessionStorage.getItem('sessionId') || null
         }
       })
       return response.data
@@ -353,24 +387,10 @@ export const api = {
     }
   },
 
-  /**
-   * Получение сообщений обратной связи пользователя
-   * @param {string} userId - ID пользователя
-   * @returns {Promise} - промис со списком сообщений пользователя
-   */
-  getUserFeedback: async (userId) => {
-    try {
-      const response = await axios.get(`${API_URL}/feedback/user/${userId}`)
-      return response.data
-    } catch (error) {
-      console.error('Error getting user feedback:', error)
-      throw error
-    }
-  },
+  // ========== Админ-панель ==========
 
   /**
    * Получение статистики для админ-панели
-   * @returns {Promise} - промис со статистикой
    */
   getAdminStats: async () => {
     try {
@@ -384,7 +404,6 @@ export const api = {
 
   /**
    * Получение списка пользователей для админ-панели
-   * @returns {Promise} - промис со списком пользователей
    */
   getAdminUsers: async () => {
     try {
@@ -398,7 +417,6 @@ export const api = {
 
   /**
    * Получение последних действий для админ-панели
-   * @returns {Promise} - промис с последними действиями
    */
   getRecentActivities: async () => {
     try {
@@ -411,235 +429,228 @@ export const api = {
   },
 
   /**
-   * Получение системных логов
-   * @param {number} page - номер страницы
-   * @param {number} limit - количество записей на странице
-   * @returns {Promise} - промис с логами
+   * Получение всех обращений пользователей
    */
-  getSystemLogs: async (page = 1, limit = 20) => {
+  getAllFeedback: async () => {
     try {
-      const response = await axios.get(`${API_URL}/admin/logs`, {
-        params: { page, limit }
-      })
+      const response = await axios.get(`${API_URL}/admin/feedback`)
       return response.data
     } catch (error) {
-      console.error('Error getting system logs:', error)
+      console.error('Error getting all feedback:', error)
       throw error
     }
   },
 
   /**
-   * Создание нового пользователя
-   * @param {Object} userData - данные пользователя
-   * @param {string} userData.name - имя пользователя
-   * @param {string} userData.email - email
-   * @param {string} userData.password - пароль
-   * @param {string} userData.role - роль (user/admin)
-   * @param {string} userData.status - статус (active/inactive)
-   * @param {string} adminId - ID администратора (для логирования)
-   * @param {string} adminName - имя администратора (для логирования)
-   * @returns {Promise} - промис с результатом
+   * Обновление статуса обращения
    */
-  createUser: async (userData, adminId, adminName) => {
+  updateFeedbackStatus: async (feedbackId, status, adminId, adminName) => {
     try {
-      const response = await axios.post(`${API_URL}/admin/users`, {
-        ...userData,
+      const response = await axios.put(`${API_URL}/admin/feedback/${feedbackId}/status`, {
+        status,
         admin_id: adminId,
         admin_name: adminName
       })
       return response.data
     } catch (error) {
-      console.error('Error creating user:', error)
+      console.error('Error updating feedback status:', error)
+      throw error
+    }
+  },
+
+  // ========== Встречи ==========
+
+  /**
+   * Получение встреч пользователя
+   */
+  getMeetings: async (userId) => {
+    try {
+      const response = await axios.get(`${API_URL}/meetings`, { params: { userId } })
+      return response.data
+    } catch (error) {
+      console.error('Error getting meetings:', error)
       throw error
     }
   },
 
   /**
-   * Обновление пользователя
-   * @param {number} userId - ID пользователя
-   * @param {Object} userData - данные для обновления
-   * @param {string} adminId - ID администратора
-   * @param {string} adminName - имя администратора
-   * @returns {Promise} - промис с результатом
+   * Создание встречи
    */
-  updateUser: async (userId, userData, adminId, adminName) => {
+  createMeeting: async (meetingData) => {
     try {
-      const response = await axios.put(`${API_URL}/admin/users/${userId}`, {
-        ...userData,
-        admin_id: adminId,
-        admin_name: adminName
+      const response = await axios.post(`${API_URL}/meetings`, meetingData)
+      return response.data
+    } catch (error) {
+      console.error('Error creating meeting:', error)
+      throw error
+    }
+  },
+
+  /**
+   * Обновление статуса встречи
+   */
+  updateMeetingStatus: async (meetingId, status, notes = null) => {
+    try {
+      const response = await axios.put(`${API_URL}/meetings/${meetingId}/status`, {
+        status,
+        notes
       })
       return response.data
     } catch (error) {
-      console.error('Error updating user:', error)
+      console.error('Error updating meeting status:', error)
       throw error
     }
   },
 
-  /**
-   * Мягкое удаление пользователя (деактивация)
-   * @param {number} userId - ID пользователя
-   * @param {string} adminId - ID администратора
-   * @param {string} adminName - имя администратора
-   * @returns {Promise} - промис с результатом
-   */
-  deleteUser: async (userId, adminId, adminName) => {
-    try {
-      const response = await axios.delete(`${API_URL}/admin/users/${userId}`, {
-        data: {
-          admin_id: adminId,
-          admin_name: adminName
-        }
-      })
-      return response.data
-    } catch (error) {
-      console.error('Error deleting user:', error)
-      throw error
-    }
+  // ========== Устаревшие методы (заглушки для совместимости) ==========
+  
+  getUser: async (userId) => {
+    console.warn('getUser is deprecated, use auth context instead')
+    return { id: userId, name: 'User' }
   },
-
-  /**
-   * Полное удаление пользователя
-   * @param {number} userId - ID пользователя
-   * @param {string} adminId - ID администратора
-   * @param {string} adminName - имя администратора
-   * @returns {Promise} - промис с результатом
-   */
-  permanentDeleteUser: async (userId, adminId, adminName) => {
-    try {
-      const response = await axios.delete(`${API_URL}/admin/users/${userId}/permanent`, {
-        data: {
-          admin_id: adminId,
-          admin_name: adminName
-        }
-      })
-      return response.data
-    } catch (error) {
-      console.error('Error permanently deleting user:', error)
-      throw error
-    }
+  
+  getStats: async () => {
+    console.warn('getStats is deprecated, use getAdminStats instead')
+    const stats = await api.getAdminStats()
+    return stats
   },
-
-  /**
- * Получение всех обращений пользователей
- * @returns {Promise} - промис со списком обращений
- */
-getAllFeedback: async () => {
-  try {
-    const response = await axios.get(`${API_URL}/admin/feedback`)
-    return response.data
-  } catch (error) {
-    console.error('Error getting all feedback:', error)
-    throw error
-  }
-},
-
-/**
- * Получение статистики по обращениям
- * @returns {Promise} - промис со статистикой
- */
-getFeedbackStats: async () => {
-  try {
-    const response = await axios.get(`${API_URL}/admin/feedback/stats`)
-    return response.data
-  } catch (error) {
-    console.error('Error getting feedback stats:', error)
-    throw error
-  }
-},
-
-/**
- * Обновление статуса обращения
- * @param {number} feedbackId - ID обращения
- * @param {string} status - новый статус
- * @param {string} adminId - ID администратора
- * @param {string} adminName - имя администратора
- * @returns {Promise} - промис с результатом
- */
-updateFeedbackStatus: async (feedbackId, status, adminId, adminName) => {
-  try {
-    const response = await axios.put(`${API_URL}/admin/feedback/${feedbackId}/status`, {
-      status,
-      admin_id: adminId,
-      admin_name: adminName
-    })
-    return response.data
-  } catch (error) {
-    console.error('Error updating feedback status:', error)
-    throw error
-  }
-},
-
-/**
- * Отметить обращение как прочитанное
- * @param {number} feedbackId - ID обращения
- * @returns {Promise} - промис с результатом
- */
-markFeedbackAsRead: async (feedbackId) => {
-  try {
-    const response = await axios.put(`${API_URL}/admin/feedback/${feedbackId}/read`)
-    return response.data
-  } catch (error) {
-    console.error('Error marking feedback as read:', error)
-    throw error
-  }
-},
-
-/**
- * Удаление обращения
- * @param {number} feedbackId - ID обращения
- * @param {string} adminId - ID администратора
- * @param {string} adminName - имя администратора
- * @returns {Promise} - промис с результатом
- */
-deleteFeedback: async (feedbackId, adminId, adminName) => {
-  try {
-    const response = await axios.delete(`${API_URL}/admin/feedback/${feedbackId}`, {
-      data: {
-        admin_id: adminId,
-        admin_name: adminName
+  
+  coldSearch: async () => {
+    console.warn('coldSearch is deprecated, use searchCandidates with resume_ids instead')
+    return { total_found: 0, candidates: [] }
+  },
+  
+  getSearchResults: async () => {
+    console.warn('getSearchResults is deprecated')
+    return { candidates: [] }
+  },
+  
+  getCandidateAnalysis: async (candidateId) => {
+    console.warn('getCandidateAnalysis is deprecated, use analyzeResume instead')
+    return api.analyzeResume(candidateId)
+  },
+  
+  getCacheStats: async () => {
+    console.warn('getCacheStats is deprecated')
+    return { hits: 0, misses: 0 }
+  },
+  
+  analyzeMultipleResumes: async (resumeIds) => {
+    console.warn('analyzeMultipleResumes is deprecated, analyze individually')
+    const results = []
+    for (const id of resumeIds) {
+      try {
+        const result = await api.analyzeResume(id)
+        results.push(result)
+      } catch (e) {
+        results.push({ error: e.message, id })
       }
-    })
-    return response.data
-  } catch (error) {
-    console.error('Error deleting feedback:', error)
-    throw error
-  }
-},
+    }
+    return { results }
+  },
+  
+  updateCandidateInfo: async () => {
+    console.warn('updateCandidateInfo is not implemented')
+    return { success: false, message: 'Not implemented' }
+  },
+  
+  getResumeStats: async () => {
+    console.warn('getResumeStats is deprecated, use getAdminStats instead')
+    return api.getAdminStats()
+  },
+  
+  exportResume: async () => {
+    console.warn('exportResume is not implemented')
+    return null
+  },
+  
+  compareResumes: async () => {
+    console.warn('compareResumes is not implemented')
+    return { comparison: [] }
+  },
+  
+  getUserFeedback: async () => {
+    console.warn('getUserFeedback is not implemented')
+    return { feedback: [] }
+  },
+  
+  getSystemLogs: async (page = 1, limit = 20) => {
+    console.warn('getSystemLogs is not implemented')
+    return { logs: [], pagination: { total: 0, page, limit, pages: 0 } }
+  },
+  
+  createUser: async () => {
+    console.warn('createUser is not implemented in Node.js server')
+    return { success: false, message: 'Not implemented' }
+  },
+  
+  updateUser: async () => {
+    console.warn('updateUser is not implemented in Node.js server')
+    return { success: false, message: 'Not implemented' }
+  },
+  
+  deleteUser: async () => {
+    console.warn('deleteUser is not implemented in Node.js server')
+    return { success: false, message: 'Not implemented' }
+  },
+  
+  permanentDeleteUser: async () => {
+    console.warn('permanentDeleteUser is not implemented in Node.js server')
+    return { success: false, message: 'Not implemented' }
+  },
+  
+  getFeedbackStats: async () => {
+    console.warn('getFeedbackStats is not implemented')
+    return { total: 0, new: 0, in_progress: 0, resolved: 0 }
+  },
+  
+  markFeedbackAsRead: async () => {
+    console.warn('markFeedbackAsRead is not implemented')
+    return { success: false }
+  },
+  
+  deleteFeedback: async () => {
+    console.warn('deleteFeedback is not implemented')
+    return { success: false }
+  },
 }
 
-// Экспортируем также отдельные функции для удобства
+// Экспортируем часто используемые функции отдельно
 export const {
-  getUser,
+  login,
+  healthCheck,
+  evaluateCandidate,
+  evaluateBatch,
+  detectAI,
+  findExaggerations,
+  createCalendarEvent,
+  aiHealthCheck,
+  getAIStats,
+  getTokenStats,
   logAction,
-  getStats,
-  coldSearch,
-  getSearchResults,
-  getCandidateAnalysis,
-  getCacheStats,
   uploadResume,
   getResumes,
   getAllResumes,
   getResumeById,
+  viewResume,
   deleteResume,
   permanentDeleteResume,
   restoreResume,
   analyzeResume,
-  analyzeMultipleResumes,
   searchCandidates,
-  updateCandidateInfo,
-  getResumeStats,
-  exportResume,
-  compareResumes,
   sendFeedback,
-  getUserFeedback,
   getAdminStats,
   getAdminUsers,
   getRecentActivities,
-  getSystemLogs,
   getAllFeedback,
-  getFeedbackStats,
   updateFeedbackStatus,
-  markFeedbackAsRead,
-  deleteFeedback
+  getMeetings,
+  getMeetingById,
+  getCandidateMeetings,
+  createMeeting,
+  updateMeetingStatus,
+  deleteMeeting,
+  getMeetingsStats,
 } = api
+
+export default api

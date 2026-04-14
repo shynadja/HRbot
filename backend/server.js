@@ -5,24 +5,27 @@ const fs = require('fs')
 const path = require('path')
 const pdf = require('pdf-parse')
 const mammoth = require('mammoth')
-const bcrypt = require('bcryptjs') // или 'bcrypt'
+const bcrypt = require('bcryptjs')
 
 const app = express()
-const PORT = 3001
+const PORT = process.env.PORT || 3001
+
+// URL Python AI сервисов
+const AI_SERVICES_URL = process.env.AI_SERVICES_URL || 'http://localhost:8000'
 
 // Константы для хэширования
 const SALT_ROUNDS = 10
 
 // Настройка CORS
 app.use(cors({
-  origin: 'http://localhost:3000',
+  origin: ['http://localhost:3000', 'http://127.0.0.1:3000'],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Accept']
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'X-Session-ID']
 }))
 
-app.use(express.json())
-app.use(express.urlencoded({ extended: true }))
+app.use(express.json({ limit: '50mb' }))
+app.use(express.urlencoded({ extended: true, limit: '50mb' }))
 
 // Создаем папку для загрузок, если её нет
 const uploadDir = path.join(__dirname, 'uploads')
@@ -45,7 +48,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({ 
   storage,
-  limits: { fileSize: 10 * 1024 * 1024 },
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
   fileFilter: (req, file, cb) => {
     const allowedTypes = [
       'application/pdf', 
@@ -69,7 +72,8 @@ if (!fs.existsSync(DB_PATH)) {
     resumes: [],
     users: [],
     feedback: [],
-    logs: []
+    logs: [],
+    meetings: []
   }
   fs.writeFileSync(DB_PATH, JSON.stringify(initialDB, null, 2))
   console.log('Created database file')
@@ -103,11 +107,6 @@ app.use((req, res, next) => {
 
 // ========== Вспомогательные функции для работы с паролями ==========
 
-/**
- * Хэширование пароля
- * @param {string} password - исходный пароль
- * @returns {Promise<string>} - хэшированный пароль
- */
 const hashPassword = async (password) => {
   try {
     const salt = await bcrypt.genSalt(SALT_ROUNDS)
@@ -119,12 +118,6 @@ const hashPassword = async (password) => {
   }
 }
 
-/**
- * Проверка пароля
- * @param {string} password - исходный пароль для проверки
- * @param {string} hash - хэшированный пароль из БД
- * @returns {Promise<boolean>} - результат проверки
- */
 const verifyPassword = async (password, hash) => {
   try {
     return await bcrypt.compare(password, hash)
@@ -134,13 +127,9 @@ const verifyPassword = async (password, hash) => {
   }
 }
 
-/**
- * Функция для инициализации тестовых пользователей с хэшированными паролями
- */
 const initializeUsers = async () => {
   const db = readDB()
   
-  // Если пользователи уже есть, не инициализируем
   if (db.users && db.users.length > 0) {
     return
   }
@@ -158,7 +147,7 @@ const initializeUsers = async () => {
       status: 'active',
       created_at: '2026-01-15T10:00:00Z',
       last_active: new Date().toISOString(),
-      searches_count: null,
+      searches_count: 0,
       avatar: null
     },
     {
@@ -170,7 +159,7 @@ const initializeUsers = async () => {
       status: 'active',
       created_at: '2026-01-01T09:00:00Z',
       last_active: new Date().toISOString(),
-      searches_count: null,
+      searches_count: 0,
       avatar: null
     },
   ]
@@ -179,102 +168,79 @@ const initializeUsers = async () => {
   console.log('Initialized users with hashed passwords')
 }
 
-// Вызываем инициализацию при запуске
 initializeUsers().catch(console.error)
 
 // ========== Функции для парсинга резюме ==========
 
-// Извлечение имени и фамилии из текста
 function extractName(text) {
-  // Ищем имя в начале текста (обычно первая строка)
-  const lines = text.split('\n').filter(line => line.trim().length > 0);
+  const lines = text.split('\n').filter(line => line.trim().length > 0)
   
   for (let line of lines) {
-    // Проверяем, похоже ли на имя (2-3 слова с заглавными буквами)
-    const words = line.trim().split(/\s+/);
+    const words = line.trim().split(/\s+/)
     if (words.length >= 2 && words.length <= 4) {
-      const hasCapitalLetters = words.every(word => word[0] && word[0] === word[0].toUpperCase());
-      const noSpecialChars = !/[^\wа-яА-ЯёЁ\s-]/.test(line);
+      const hasCapitalLetters = words.every(word => word[0] && word[0] === word[0].toUpperCase())
+      const noSpecialChars = !/[^\wа-яА-ЯёЁ\s-]/.test(line)
       
       if (hasCapitalLetters && noSpecialChars && line.length < 50) {
-        return line.trim();
+        return line.trim()
       }
     }
   }
   
-  return 'Неизвестно';
+  return 'Неизвестно'
 }
 
-// Извлечение должности из текста
 function extractPosition(text) {
   const positionKeywords = [
     'должность', 'position', 'желаемая должность', 'desired position',
     'frontend', 'backend', 'fullstack', 'разработчик', 'developer',
     'senior', 'middle', 'junior', 'lead', 'architect',
     'менеджер', 'manager', 'дизайнер', 'designer', 'аналитик', 'analyst',
-    'тестировщик', 'tester', 'qa', 'devops', 'product manager', 'project manager'
-  ];
+    'тестировщик', 'tester', 'qa', 'devops', 'ml', 'data scientist'
+  ]
   
-  const lines = text.split('\n');
+  const lines = text.split('\n')
   
-  // Ищем строки, содержащие ключевые слова о должности
   for (let line of lines) {
-    const lowerLine = line.toLowerCase();
+    const lowerLine = line.toLowerCase()
     if (lowerLine.includes('должность') || lowerLine.includes('position')) {
-      const parts = line.split(/[:|]/);
+      const parts = line.split(/[:|]/)
       if (parts.length > 1) {
-        return parts[1].trim();
+        return parts[1].trim()
       }
     }
   }
   
-  // Ищем по ключевым словам
   for (let line of lines) {
-    const lowerLine = line.toLowerCase();
+    const lowerLine = line.toLowerCase()
     for (let keyword of positionKeywords) {
       if (lowerLine.includes(keyword) && line.length < 100) {
-        return line.trim();
+        return line.trim()
       }
     }
   }
   
-  return 'Специалист';
+  return 'Специалист'
 }
 
-// Извлечение опыта работы
 function extractExperience(text) {
   const experiencePatterns = [
     /опыт работы\s*[:\s]*(\d+)\s*(?:год|года|лет)/i,
     /experience\s*[:\s]*(\d+)\s*(?:year|years)/i,
     /стаж\s*[:\s]*(\d+)\s*(?:год|года|лет)/i,
-    /(\d+)\s*(?:год|года|лет)\s*(?:опыт|стаж)/i,
-    /(\d+)\s*г\.?\s*(\d+)\s*м/i,
-    /(\d+)\s*y\.?\s*(\d+)\s*m/i
-  ];
+    /(\d+)\s*(?:год|года|лет)\s*(?:опыт|стаж)/i
+  ]
   
   for (let pattern of experiencePatterns) {
-    const match = text.match(pattern);
+    const match = text.match(pattern)
     if (match) {
-      if (match[1] && match[2]) {
-        return `${match[1]} г ${match[2]} мес`;
-      } else if (match[1]) {
-        return `${match[1]} лет`;
-      }
+      return `${match[1]} лет`
     }
   }
   
-  // Пытаемся найти даты работы
-  const datePattern = /(?:января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря|january|february|march|april|may|june|july|august|september|october|november|december)\s+(\d{4})\s*[—–-]\s*(?:по|to|present|настоящее|текущее|ныне)/i;
-  const dates = text.match(datePattern);
-  
-  if (dates) {
-    return 'от 1 года';
-  }
-  
-  return 'Опыт не указан';
+  return 'Опыт не указан'
 }
 
-// Извлечение навыков
 function extractSkills(text) {
   const commonSkills = [
     'JavaScript', 'TypeScript', 'React', 'Vue', 'Angular', 'Node.js', 'Python',
@@ -282,65 +248,219 @@ function extractSkills(text) {
     'HTML', 'CSS', 'SASS', 'LESS', 'Webpack', 'Babel', 'Git', 'Docker',
     'Kubernetes', 'AWS', 'Azure', 'GCP', 'MongoDB', 'PostgreSQL', 'MySQL',
     'Redis', 'Elasticsearch', 'Kafka', 'RabbitMQ', 'GraphQL', 'REST API',
-    'Figma', 'Adobe XD', 'Sketch', 'Photoshop', 'Illustrator', 'UI/UX',
-    'Project managment', 'agile', 'scrum', 'kanban', 'jira', 'confluence',
-    'team leading', 'mentoring', 'communication', 'problem solving'
-  ];
+    'Figma', 'Adobe XD', 'Sketch', 'UI/UX', 'SQL', 'FastAPI', 'Django',
+    'Flask', 'Spring', 'TensorFlow', 'PyTorch', 'Pandas', 'NumPy'
+  ]
   
-  const foundSkills = [];
-  const lowerText = text.toLowerCase();
-  
-  // Ищем секцию с навыками
-  const skillSections = text.split(/\n{2,}/);
-  let skillsText = '';
-  
-  for (let section of skillSections) {
-    const lowerSection = section.toLowerCase();
-    if (lowerSection.includes('навык') || lowerSection.includes('skill') || 
-        lowerSection.includes('технологи') || lowerSection.includes('technology')) {
-      skillsText = section;
-      break;
-    }
-  }
-  
-  // Если нашли секцию с навыками, ищем в ней
-  const searchText = skillsText || text;
+  const foundSkills = []
+  const lowerText = text.toLowerCase()
   
   for (let skill of commonSkills) {
-    if (searchText.toLowerCase().includes(skill.toLowerCase())) {
-      foundSkills.push(skill);
+    if (lowerText.includes(skill.toLowerCase())) {
+      foundSkills.push(skill)
     }
-    if (foundSkills.length >= 5) break;
+    if (foundSkills.length >= 8) break
   }
   
-  // Если навыков мало, ищем дополнительные
-  if (foundSkills.length < 3) {
-    const skillPattern = /[•\-*]\s*([A-Za-zА-Яа-я+#.]+(?:\s+[A-Za-zА-Яа-я+#.]+){0,2})/g;
-    const matches = searchText.matchAll(skillPattern);
-    for (let match of matches) {
-      if (match[1] && match[1].length < 30 && !foundSkills.includes(match[1])) {
-        foundSkills.push(match[1]);
-      }
-      if (foundSkills.length >= 5) break;
+  return foundSkills.length > 0 ? foundSkills : ['React', 'JavaScript', 'HTML/CSS']
+}
+
+function extractEmail(text) {
+  const emailPattern = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/
+  const match = text.match(emailPattern)
+  return match ? match[0] : ''
+}
+
+function extractPhone(text) {
+  const phonePattern = /(?:\+7|8)[\s-]?\(?\d{3}\)?[\s-]?\d{3}[\s-]?\d{2}[\s-]?\d{2}/
+  const match = text.match(phonePattern)
+  return match ? match[0] : ''
+}
+
+function extractLocation(text) {
+  const cities = ['Москва', 'Санкт-Петербург', 'Новосибирск', 'Екатеринбург', 'Казань']
+  for (let city of cities) {
+    if (text.includes(city)) {
+      return city
     }
   }
+  return 'Москва'
+}
+
+// ========== Функции для AI-анализа ==========
+
+function extractYearsFromExperience(expText) {
+  if (!expText) return 0
+  const match = expText.match(/(\d+)/)
+  return match ? parseInt(match[1]) : 0
+}
+
+function extractHardSkills(resume) {
+  if (resume.skills && resume.skills.length > 0) {
+    return resume.skills.join(', ')
+  }
+  return ''
+}
+
+function extractSoftSkills(resume) {
+  const softSkillKeywords = ['коммуника', 'работа в команд', 'лидер', 'ответств', 'организова']
+  const text = resume.text || ''
   
-  return foundSkills.length > 0 ? foundSkills : ['React', 'JavaScript', 'HTML/CSS'];
+  const found = []
+  for (const keyword of softSkillKeywords) {
+    if (text.toLowerCase().includes(keyword)) {
+      found.push(keyword)
+    }
+  }
+  return found.join(', ')
+}
+
+function extractSkillsFromText(text) {
+  const commonSkills = [
+    'Python', 'Java', 'JavaScript', 'TypeScript', 'React', 'Vue', 'Angular',
+    'Node.js', 'Django', 'Flask', 'FastAPI', 'SQL', 'PostgreSQL',
+    'MySQL', 'MongoDB', 'Redis', 'Docker', 'Kubernetes', 'AWS', 'Git'
+  ]
+  
+  const found = []
+  const lowerText = text.toLowerCase()
+  for (const skill of commonSkills) {
+    if (lowerText.includes(skill.toLowerCase())) {
+      found.push(skill)
+    }
+  }
+  return found.join(', ')
+}
+
+function extractExperienceRequirements(query) {
+  const match = query.match(/опыт[:\s]*(\d+)/i) || query.match(/(\d+)\s*(?:год|лет|года)/i)
+  return match ? `от ${match[1]} лет` : 'от 1 года'
+}
+
+function extractSkillsFromQuery(query) {
+  return extractSkillsFromText(query)
+}
+
+// ========== Прокси к Python AI Services ==========
+
+const proxyToAIServices = async (req, res, targetPath) => {
+  try {
+    const url = `${AI_SERVICES_URL}${targetPath}`
+    const method = req.method
+    const headers = { ...req.headers }
+    
+    delete headers['host']
+    delete headers['content-length']
+    delete headers['origin']
+    delete headers['referer']
+    
+    headers['X-Forwarded-From'] = 'node-server'
+    
+    let body = null
+    if (method !== 'GET' && method !== 'HEAD') {
+      body = JSON.stringify(req.body)
+      headers['Content-Type'] = 'application/json'
+    }
+    
+    console.log(`Proxying ${method} ${targetPath} to AI services`)
+    
+    const response = await fetch(url, {
+      method,
+      headers,
+      body
+    })
+    
+    const contentType = response.headers.get('content-type')
+    let data
+    
+    if (contentType && contentType.includes('application/json')) {
+      data = await response.json()
+    } else {
+      data = await response.text()
+    }
+    
+    res.status(response.status)
+    
+    if (contentType) {
+      res.setHeader('Content-Type', contentType)
+    }
+    
+    res.send(data)
+    
+  } catch (error) {
+    console.error('Proxy error:', error.message)
+    res.status(503).json({ 
+      error: 'AI Services unavailable',
+      message: error.message 
+    })
+  }
+}
+
+// Проверка доступности AI сервисов
+const checkAIServices = async () => {
+  try {
+    const response = await fetch(`${AI_SERVICES_URL}/api/health`)
+    return response.ok
+  } catch (error) {
+    return false
+  }
 }
 
 // ========== API Endpoints ==========
 
-// Health check
-app.get('/api/health', (req, res) => {
+// Health check с проверкой AI сервисов
+app.get('/api/health', async (req, res) => {
+  const aiServicesStatus = await checkAIServices() ? 'available' : 'unavailable'
+  
   res.json({ 
     status: 'ok', 
     message: 'Server is running',
     timestamp: new Date().toISOString(),
-    port: PORT
+    port: PORT,
+    services: {
+      node: 'running',
+      ai_services: aiServicesStatus,
+      ai_services_url: AI_SERVICES_URL
+    }
   })
 })
 
-// Загрузка резюме
+// ========== Эндпоинты для AI-анализа (прокси к Python) ==========
+
+app.post('/api/ai/evaluate', (req, res) => {
+  proxyToAIServices(req, res, '/api/evaluate/candidate')
+})
+
+app.post('/api/ai/evaluate/batch', (req, res) => {
+  proxyToAIServices(req, res, '/api/evaluate/batch')
+})
+
+app.post('/api/ai/detect-ai', (req, res) => {
+  proxyToAIServices(req, res, '/api/gigachat/detect-ai')
+})
+
+app.post('/api/ai/find-exaggerations', (req, res) => {
+  proxyToAIServices(req, res, '/api/gigachat/find-exaggerations')
+})
+
+app.post('/api/ai/calendar/create', (req, res) => {
+  proxyToAIServices(req, res, '/api/calendar/create')
+})
+
+app.get('/api/ai/health', (req, res) => {
+  proxyToAIServices(req, res, '/api/health')
+})
+
+app.get('/api/ai/stats', (req, res) => {
+  proxyToAIServices(req, res, '/api/stats/efficiency')
+})
+
+app.get('/api/ai/stats/tokens', (req, res) => {
+  proxyToAIServices(req, res, '/api/stats/tokens')
+})
+
+// ========== Загрузка резюме ==========
+
 app.post('/api/resumes/upload', upload.single('file'), async (req, res) => {
   try {
     console.log('Upload request received')
@@ -356,8 +476,7 @@ app.post('/api/resumes/upload', upload.single('file'), async (req, res) => {
     console.log('File details:', {
       name: fileName,
       size: file.size,
-      type: file.mimetype,
-      path: file.path
+      type: file.mimetype
     })
 
     // Извлекаем текст из файла
@@ -365,8 +484,7 @@ app.post('/api/resumes/upload', upload.single('file'), async (req, res) => {
     try {
       if (file.mimetype === 'application/pdf') {
         text = await extractTextFromPDF(file.path)
-      } else if (file.mimetype === 'application/msword' || 
-                 file.mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+      } else if (file.mimetype.includes('word') || file.mimetype.includes('document')) {
         text = await extractTextFromDOCX(file.path)
       }
     } catch (extractError) {
@@ -375,25 +493,17 @@ app.post('/api/resumes/upload', upload.single('file'), async (req, res) => {
     }
 
     // Парсим данные из резюме
-    const fullName = extractName(text);
-    const nameParts = fullName.split(' ');
-    const firstName = nameParts[0] || 'Иван';
-    const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : 'Иванов';
+    const fullName = extractName(text)
+    const nameParts = fullName.split(' ')
+    const firstName = nameParts[0] || ''
+    const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : ''
     
-    const position = extractPosition(text);
-    const experience = extractExperience(text);
-    const skills = extractSkills(text);
-
-    // Простой анализ резюме
-    const analysis = {
-      score: Math.floor(Math.random() * 30) + 70,
-      aiProbability: Math.floor(Math.random() * 50),
-      suspiciousPhrases: [
-        'оптимизация производительности с помощью инновационных подходов',
-        'реализация сложных алгоритмов машинного обучения',
-        'управление распределенной командой из 50+ человек'
-      ].slice(0, Math.floor(Math.random() * 2) + 1)
-    }
+    const position = extractPosition(text)
+    const experience = extractExperience(text)
+    const skills = extractSkills(text)
+    const email = extractEmail(text)
+    const phone = extractPhone(text)
+    const location = extractLocation(text)
 
     // Сохраняем в БД
     const db = readDB()
@@ -406,7 +516,7 @@ app.post('/api/resumes/upload', upload.single('file'), async (req, res) => {
       file_type: file.mimetype,
       upload_date: new Date().toISOString(),
       user_id: userId,
-      text: text.substring(0, 4000),
+      text: text.substring(0, 8000),
       
       // Парсенные данные
       full_name: fullName,
@@ -415,8 +525,11 @@ app.post('/api/resumes/upload', upload.single('file'), async (req, res) => {
       position: position,
       experience: experience,
       skills: skills,
+      email: email,
+      phone: phone,
+      location: location,
       
-      analysis,
+      analysis: null,
       is_active: true,
       deleted_at: null
     }
@@ -425,12 +538,6 @@ app.post('/api/resumes/upload', upload.single('file'), async (req, res) => {
     writeDB(db)
 
     console.log('Resume saved with ID:', newResume.id)
-    console.log('Parsed data:', {
-      name: fullName,
-      position,
-      experience,
-      skills
-    })
 
     res.json({
       id: newResume.id,
@@ -438,14 +545,16 @@ app.post('/api/resumes/upload', upload.single('file'), async (req, res) => {
       file_size: file.size,
       file_type: file.mimetype,
       upload_date: newResume.upload_date,
-      analysis,
       candidate: {
         full_name: fullName,
         first_name: firstName,
         last_name: lastName,
         position,
         experience,
-        skills
+        skills,
+        email,
+        phone,
+        location
       }
     })
 
@@ -455,13 +564,13 @@ app.post('/api/resumes/upload', upload.single('file'), async (req, res) => {
   }
 })
 
-// Получение всех активных резюме для пользователя
+// ========== Получение резюме ==========
+
 app.get('/api/resumes', (req, res) => {
   try {
     const db = readDB()
     const userId = req.query.userId || 'anonymous'
     
-    // Фильтруем только активные резюме для конкретного пользователя
     const resumesList = db.resumes
       .filter(r => r.user_id === userId && r.is_active === true)
       .map(r => ({
@@ -472,19 +581,19 @@ app.get('/api/resumes', (req, res) => {
         file_type: r.file_type,
         upload_date: r.upload_date,
         
-        // Добавляем все парсенные данные
         full_name: r.full_name,
         first_name: r.first_name,
         last_name: r.last_name,
         position: r.position,
         experience: r.experience,
         skills: r.skills || [],
-        candidate_name: r.full_name,
+        location: r.location,
         
         user_id: r.user_id,
         is_active: r.is_active,
         analysis: r.analysis
       }))
+      .sort((a, b) => new Date(b.upload_date) - new Date(a.upload_date))
     
     res.json({ resumes: resumesList })
   } catch (error) {
@@ -493,29 +602,22 @@ app.get('/api/resumes', (req, res) => {
   }
 })
 
-// Получение всех резюме (включая удаленные) - для админа
 app.get('/api/resumes/all', (req, res) => {
   try {
     const db = readDB()
-    const resumesList = db.resumes.map(r => ({
-      id: r.id,
-      name: r.name,
-      file_name: r.file_name,
-      file_size: r.file_size,
-      file_type: r.file_type,
-      upload_date: r.upload_date,
-      
-      full_name: r.full_name,
-      first_name: r.first_name,
-      last_name: r.last_name,
-      position: r.position,
-      experience: r.experience,
-      skills: r.skills || [],
-      
-      user_id: r.user_id,
-      is_active: r.is_active,
-      deleted_at: r.deleted_at
-    }))
+    const resumesList = db.resumes
+      .map(r => ({
+        id: r.id,
+        name: r.name,
+        file_name: r.file_name,
+        upload_date: r.upload_date,
+        full_name: r.full_name,
+        position: r.position,
+        user_id: r.user_id,
+        is_active: r.is_active,
+        deleted_at: r.deleted_at
+      }))
+      .sort((a, b) => new Date(b.upload_date) - new Date(a.upload_date))
     
     res.json({ resumes: resumesList })
   } catch (error) {
@@ -524,7 +626,6 @@ app.get('/api/resumes/all', (req, res) => {
   }
 })
 
-// Получение конкретного резюме
 app.get('/api/resumes/:id', (req, res) => {
   try {
     const db = readDB()
@@ -541,7 +642,6 @@ app.get('/api/resumes/:id', (req, res) => {
   }
 })
 
-// Просмотр файла резюме
 app.get('/api/resumes/:id/view', (req, res) => {
   try {
     const db = readDB()
@@ -559,21 +659,12 @@ app.get('/api/resumes/:id/view', (req, res) => {
     const ext = path.extname(filePath).toLowerCase()
     let mimeType = 'application/octet-stream'
     
-    switch (ext) {
-      case '.pdf':
-        mimeType = 'application/pdf'
-        break
-      case '.doc':
-        mimeType = 'application/msword'
-        break
-      case '.docx':
-        mimeType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-        break
-    }
+    if (ext === '.pdf') mimeType = 'application/pdf'
+    else if (ext === '.doc') mimeType = 'application/msword'
+    else if (ext === '.docx') mimeType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
 
     res.setHeader('Content-Type', mimeType)
     res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(resume.file_name)}"`)
-    res.setHeader('Content-Length', resume.file_size)
     
     res.sendFile(path.resolve(filePath))
   } catch (error) {
@@ -582,7 +673,8 @@ app.get('/api/resumes/:id/view', (req, res) => {
   }
 })
 
-// Мягкое удаление резюме
+// ========== Удаление резюме ==========
+
 app.delete('/api/resumes/:id', (req, res) => {
   try {
     const db = readDB()
@@ -591,17 +683,11 @@ app.delete('/api/resumes/:id', (req, res) => {
     if (index !== -1) {
       db.resumes[index].is_active = false
       db.resumes[index].deleted_at = new Date().toISOString()
-      
       writeDB(db)
       
       res.json({ 
         success: true, 
-        message: 'Resume marked as deleted',
-        resume: {
-          id: db.resumes[index].id,
-          is_active: false,
-          deleted_at: db.resumes[index].deleted_at
-        }
+        message: 'Resume marked as deleted'
       })
     } else {
       res.status(404).json({ error: 'Resume not found' })
@@ -612,7 +698,6 @@ app.delete('/api/resumes/:id', (req, res) => {
   }
 })
 
-// Полное удаление резюме (для админа)
 app.delete('/api/resumes/:id/permanent', (req, res) => {
   try {
     const db = readDB()
@@ -620,10 +705,8 @@ app.delete('/api/resumes/:id/permanent', (req, res) => {
     
     if (index !== -1) {
       const filePath = db.resumes[index].file_path
-      
       if (fs.existsSync(filePath)) {
         fs.unlinkSync(filePath)
-        console.log('File permanently deleted:', filePath)
       }
       
       db.resumes.splice(index, 1)
@@ -639,7 +722,6 @@ app.delete('/api/resumes/:id/permanent', (req, res) => {
   }
 })
 
-// Восстановление удаленного резюме (для админа)
 app.post('/api/resumes/:id/restore', (req, res) => {
   try {
     const db = readDB()
@@ -648,18 +730,9 @@ app.post('/api/resumes/:id/restore', (req, res) => {
     if (index !== -1) {
       db.resumes[index].is_active = true
       db.resumes[index].deleted_at = null
-      
       writeDB(db)
       
-      res.json({ 
-        success: true, 
-        message: 'Resume restored',
-        resume: {
-          id: db.resumes[index].id,
-          is_active: true,
-          deleted_at: null
-        }
-      })
+      res.json({ success: true, message: 'Resume restored' })
     } else {
       res.status(404).json({ error: 'Resume not found' })
     }
@@ -669,78 +742,482 @@ app.post('/api/resumes/:id/restore', (req, res) => {
   }
 })
 
-// Анализ резюме
-app.post('/api/resumes/:id/analyze', (req, res) => {
+// ========== Анализ резюме на ИИ ==========
+
+app.post('/api/resumes/:id/analyze', async (req, res) => {
   try {
     const db = readDB()
     const resume = db.resumes.find(r => r.id == req.params.id)
     
-    if (resume) {
-      res.json(resume.analysis || {
-        aiProbability: Math.floor(Math.random() * 100),
-        suspiciousPhrases: [
-          'оптимизация производительности с помощью инновационных подходов',
-          'реализация сложных алгоритмов машинного обучения'
-        ].slice(0, Math.floor(Math.random() * 2) + 1)
-      })
-    } else {
-      res.status(404).json({ error: 'Resume not found' })
+    if (!resume) {
+      return res.status(404).json({ error: 'Resume not found' })
     }
+    
+    const resumeText = (resume.text || '').substring(0, 3000)
+    
+    let aiProbability = null
+    let exaggerations = []
+    let suspiciousPhrases = []
+    
+    // Проверяем доступность AI сервисов
+    const aiAvailable = await checkAIServices()
+    
+    if (aiAvailable) {
+      try {
+        // Детекция ИИ
+        const aiResponse = await fetch(`${AI_SERVICES_URL}/api/gigachat/detect-ai`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            text: resumeText,
+            prompt_key: 'check_ai_generated'
+          })
+        })
+        
+        if (aiResponse.ok) {
+          const aiData = await aiResponse.json()
+          aiProbability = aiData.aiProbability || 0
+        }
+        
+        // Поиск преувеличений
+        const exResponse = await fetch(`${AI_SERVICES_URL}/api/gigachat/find-exaggerations`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            text: resumeText,
+            prompt_key: 'find_exaggerations'
+          })
+        })
+        
+        if (exResponse.ok) {
+          const exData = await exResponse.json()
+          exaggerations = exData.exaggerations || []
+          suspiciousPhrases = exaggerations.map(e => e.fragment || e.issue).filter(Boolean)
+        }
+        
+        console.log(`AI analysis completed for resume ${resume.id}, probability: ${aiProbability}%`)
+        
+      } catch (error) {
+        console.warn('AI analysis error:', error.message)
+      }
+    } else {
+      console.warn('AI services unavailable, using fallback')
+    }
+    
+    // Fallback значения только если AI недоступен
+    if (aiProbability === null) {
+      aiProbability = Math.floor(Math.random() * 30) + 15 // 15-45%
+    }
+    if (suspiciousPhrases.length === 0 && aiProbability > 30) {
+      suspiciousPhrases = [
+        'оптимизация производительности с помощью инновационных подходов',
+        'реализация сложных алгоритмов машинного обучения'
+      ].slice(0, Math.floor(Math.random() * 2) + 1)
+    }
+    
+    // Сохраняем результаты
+    if (!resume.analysis) {
+      resume.analysis = {}
+    }
+    resume.analysis.aiProbability = aiProbability
+    resume.analysis.exaggerations = exaggerations
+    resume.analysis.suspiciousPhrases = suspiciousPhrases
+    resume.analysis.analyzed_at = new Date().toISOString()
+    
+    const index = db.resumes.findIndex(r => r.id == req.params.id)
+    db.resumes[index] = resume
+    writeDB(db)
+
+    console.log(`AI analysis saved for resume ${resume.id}`)
+    
+    res.json({
+      aiProbability,
+      exaggerations,
+      suspiciousPhrases,
+      count: exaggerations.length
+    })
+    
   } catch (error) {
     console.error('Error analyzing resume:', error)
     res.status(500).json({ error: 'Failed to analyze resume' })
   }
 })
 
-// Поиск кандидатов (только по активным резюме)
-app.post('/api/candidates/search', (req, res) => {
+// ========== Поиск кандидатов с AI-анализом ==========
+
+app.post('/api/candidates/search', async (req, res) => {
   try {
-    const { query, resume_ids } = req.body
+    const { query, resume_ids, userId } = req.body
     const db = readDB()
     
-    // Ищем только по активным резюме
-    const candidates = db.resumes
-      .filter(r => resume_ids.includes(r.id) && r.is_active === true)
-      .map((r, index) => ({
+    console.log(`Searching candidates: "${query}"`)
+    
+    const selectedResumes = db.resumes
+      .filter(r => resume_ids && resume_ids.includes(r.id) && r.is_active === true)
+    
+    if (selectedResumes.length === 0) {
+      return res.json({
+        total_found: 0,
+        analyzed_deep: 0,
+        candidates: []
+      })
+    }
+    
+    let aiResults = []
+    const aiAvailable = await checkAIServices()
+    
+    if (aiAvailable && query && query.trim().length > 0) {
+      try {
+        const candidatesForAI = selectedResumes.map(r => ({
+          idCv: `cv_${r.id}`,
+          idVacancy: `search_${Date.now()}`,
+          positionName: r.position || 'Не указана',
+          experience: extractYearsFromExperience(r.experience),
+          education: r.education || extractEducation(r.text) || '',
+          hardSkills_cv: extractHardSkills(r),
+          softSkills_cv: extractSoftSkills(r),
+          salaryMin_cv: r.salary_min || null,
+          salaryMax_cv: r.salary_max || null,
+          localityName: r.location || 'Не указан',
+          vacancyName: query.substring(0, 100),
+          experienceRequirements: extractExperienceRequirements(query),
+          hardSkills_vacancy: extractSkillsFromQuery(query),
+          softSkills_vacancy: '',
+          responsibilities: query,
+          positionRequirements: query
+        }))
+        
+        const aiResponse = await fetch(`${AI_SERVICES_URL}/api/evaluate/batch`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ candidates: candidatesForAI })
+        })
+        
+        if (aiResponse.ok) {
+          const aiData = await aiResponse.json()
+          aiResults = aiData.results || []
+          console.log(`AI analysis completed for ${aiResults.length} candidates`)
+        }
+      } catch (error) {
+        console.warn('AI services error:', error.message)
+      }
+    }
+    
+    // Формируем результаты
+    const candidates = selectedResumes.map((r, index) => {
+      const aiResult = aiResults[index] || {}
+      const quickAssessment = aiResult.quick_assessment || {}
+      const finalVerdict = aiResult.final_verdict || {}
+      
+      // Сильные стороны
+      let strengths = []
+      if (aiResult.strengths && aiResult.strengths.length > 0) {
+        strengths = aiResult.strengths.map(s => 
+          typeof s === 'string' ? s : (s.description || JSON.stringify(s))
+        )
+      } else {
+        strengths = []
+      }
+      
+      // Улучшения
+      let improvements = []
+      if (aiResult.improvements && aiResult.improvements.length > 0) {
+        improvements = aiResult.improvements.map(i => 
+          typeof i === 'string' ? i : (i.suggestion || JSON.stringify(i))
+        )
+      } else {
+        improvements = []
+      }
+      
+      return {
         id: index + 1,
         resume_id: r.id,
         
-        // Используем парсенные данные
         firstName: r.first_name || 'Иван',
         lastName: r.last_name || 'Иванов',
         fullName: r.full_name || `${r.first_name || 'Иван'} ${r.last_name || 'Иванов'}`,
         position: r.position || 'Разработчик',
         experience: r.experience || 'Опыт не указан',
-        skills: r.skills && r.skills.length > 0 ? r.skills : ['React', 'JavaScript', 'HTML/CSS'],
+        skills: r.skills || ['React', 'JavaScript', 'HTML/CSS'],
+        location: r.location || 'Москва',
+        email: r.email || '',
+        phone: r.phone || '',
         
-        // Дополнительные поля
-        company: 'Из резюме',
-        location: 'Москва',
-        phone: '+7 (999) 123-45-67',
-        
-        // Анализ
-        score: r.analysis?.score || Math.floor(Math.random() * 30) + 70,
+        score: quickAssessment.score || Math.floor(Math.random() * 30) + 70,
         aiProbability: r.analysis?.aiProbability || Math.floor(Math.random() * 50),
         suspiciousPhrases: r.analysis?.suspiciousPhrases || [],
-        strengths: r.analysis?.strengths || ['Опыт работы', 'Навыки'],
-        improvements: r.analysis?.improvements || ['Рекомендации']
-      }))
-
+        strengths: strengths.slice(0, 3),
+        improvements: improvements.slice(0, 2),
+        
+        final_verdict: {
+          decision: finalVerdict.decision || (quickAssessment.score >= 70 ? 'Приглашение' : 'Отказ'),
+          reason: finalVerdict.reason || (quickAssessment.score >= 70 
+            ? 'Кандидат соответствует основным требованиям'
+            : 'Требуется дополнительное рассмотрение')
+        }
+      }
+    })
+        
+    // Логируем поиск
+    const logs = db.logs || []
+    logs.push({
+      id: Date.now(),
+      action: 'search_candidates',
+      user_id: userId || 'anonymous',
+      details: `Поиск: "${query?.substring(0, 50) || 'без запроса'}...", найдено ${candidates.length}`,
+      timestamp: new Date().toISOString(),
+      level: 'info'
+    })
+    db.logs = logs.slice(-1000)
+    writeDB(db)
+    
     res.json({
       total_found: candidates.length,
-      analyzed_deep: candidates.length,
+      analyzed_deep: aiResults.length,
       cached_count: 0,
+      ai_used: aiAvailable && aiResults.length > 0,
       candidates
     })
+    
   } catch (error) {
     console.error('Error searching candidates:', error)
     res.status(500).json({ error: 'Failed to search candidates' })
   }
 })
 
-// ========== Эндпоинты для аутентификации ==========
+// ========== Встречи (прокси к Python) ==========
 
-// Логин пользователя
+// Получение всех встреч пользователя
+app.get('/api/meetings', async (req, res) => {
+  try {
+    const userId = req.query.userId
+    
+    if (!userId) {
+      return res.status(400).json({ error: 'User ID is required' })
+    }
+    
+    const aiAvailable = await checkAIServices()
+    
+    if (aiAvailable) {
+      // Проксируем к Python API
+      const url = `${AI_SERVICES_URL}/api/meetings?user_id=${userId}`
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' }
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        return res.json(data)
+      }
+    }
+    
+    // Fallback - возвращаем из локальной БД
+    const db = readDB()
+    const userMeetings = (db.meetings || [])
+      .filter(m => m.user_id == userId || m.created_by == userId)
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+    
+    res.json({ 
+      meetings: userMeetings,
+      total: userMeetings.length,
+      source: 'local_db'
+    })
+    
+  } catch (error) {
+    console.error('Error getting meetings:', error)
+    res.status(500).json({ error: 'Failed to get meetings' })
+  }
+})
+
+// Получение встречи по ID
+app.get('/api/meetings/:id', async (req, res) => {
+  try {
+    const aiAvailable = await checkAIServices()
+    
+    if (aiAvailable) {
+      const url = `${AI_SERVICES_URL}/api/meetings/${req.params.id}`
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' }
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        return res.json(data)
+      }
+    }
+    
+    // Fallback
+    const db = readDB()
+    const meeting = (db.meetings || []).find(m => m.id == req.params.id)
+    
+    if (meeting) {
+      res.json({ meeting, source: 'local_db' })
+    } else {
+      res.status(404).json({ error: 'Meeting not found' })
+    }
+    
+  } catch (error) {
+    console.error('Error getting meeting:', error)
+    res.status(500).json({ error: 'Failed to get meeting' })
+  }
+})
+
+// Создание встречи
+app.post('/api/meetings', async (req, res) => {
+  try {
+    const aiAvailable = await checkAIServices()
+    
+    if (aiAvailable) {
+      const url = `${AI_SERVICES_URL}/api/meetings`
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(req.body)
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        
+        // Также сохраняем в локальную БД для синхронизации
+        const db = readDB()
+        if (!db.meetings) db.meetings = []
+        db.meetings.push({
+          ...req.body,
+          id: data.meeting?.id || Date.now(),
+          created_at: new Date().toISOString(),
+          source: 'postgres'
+        })
+        writeDB(db)
+        
+        return res.json(data)
+      }
+    }
+    
+    // Fallback - сохраняем в локальную БД
+    const db = readDB()
+    const newMeeting = {
+      id: Date.now(),
+      ...req.body,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      status: req.body.status || 'scheduled',
+      source: 'local_db'
+    }
+    
+    if (!db.meetings) db.meetings = []
+    db.meetings.push(newMeeting)
+    writeDB(db)
+    
+    console.log(`Meeting saved to local DB with ID: ${newMeeting.id}`)
+    
+    res.json({
+      success: true,
+      meeting: newMeeting,
+      source: 'local_db'
+    })
+    
+  } catch (error) {
+    console.error('Error creating meeting:', error)
+    res.status(500).json({ error: 'Failed to create meeting' })
+  }
+})
+
+// Обновление статуса встречи
+app.put('/api/meetings/:id/status', async (req, res) => {
+  try {
+    const aiAvailable = await checkAIServices()
+    
+    if (aiAvailable) {
+      const url = `${AI_SERVICES_URL}/api/meetings/${req.params.id}/status`
+      const response = await fetch(url, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(req.body)
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        return res.json(data)
+      }
+    }
+    
+    // Fallback
+    const db = readDB()
+    const index = (db.meetings || []).findIndex(m => m.id == req.params.id)
+    
+    if (index !== -1) {
+      db.meetings[index].status = req.body.status
+      db.meetings[index].notes = req.body.notes || db.meetings[index].notes
+      db.meetings[index].outcome = req.body.outcome || db.meetings[index].outcome
+      db.meetings[index].updated_at = new Date().toISOString()
+      writeDB(db)
+      
+      res.json({
+        success: true,
+        meeting: db.meetings[index],
+        source: 'local_db'
+      })
+    } else {
+      res.status(404).json({ error: 'Meeting not found' })
+    }
+    
+  } catch (error) {
+    console.error('Error updating meeting:', error)
+    res.status(500).json({ error: 'Failed to update meeting' })
+  }
+})
+
+// Получение статистики по встречам
+app.get('/api/meetings/stats', async (req, res) => {
+  try {
+    const userId = req.query.userId
+    const aiAvailable = await checkAIServices()
+    
+    if (aiAvailable) {
+      const url = `${AI_SERVICES_URL}/api/meetings/stats${userId ? `?user_id=${userId}` : ''}`
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' }
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        return res.json(data)
+      }
+    }
+    
+    // Fallback
+    const db = readDB()
+    let meetings = db.meetings || []
+    
+    if (userId) {
+      meetings = meetings.filter(m => m.user_id == userId || m.created_by == userId)
+    }
+    
+    const stats = {
+      total: meetings.length,
+      scheduled: meetings.filter(m => m.status === 'scheduled').length,
+      completed: meetings.filter(m => m.status === 'completed').length,
+      cancelled: meetings.filter(m => m.status === 'cancelled').length,
+      upcoming: meetings.filter(m => 
+        m.status === 'scheduled' && new Date(m.start_time) > new Date()
+      ).length,
+      with_resume: meetings.filter(m => m.resume_id).length,
+      source: 'local_db'
+    }
+    
+    res.json({ stats })
+    
+  } catch (error) {
+    console.error('Error getting meeting stats:', error)
+    res.status(500).json({ error: 'Failed to get meeting stats' })
+  }
+})
+
+// ========== Аутентификация ==========
+
 app.post('/api/login', async (req, res) => {
   try {
     const { email, password } = req.body
@@ -756,32 +1233,28 @@ app.post('/api/login', async (req, res) => {
       return res.status(401).json({ error: 'Неверный email или пароль' })
     }
     
-    // Проверяем пароль
     const isValidPassword = await verifyPassword(password, user.password)
     
     if (!isValidPassword) {
       return res.status(401).json({ error: 'Неверный email или пароль' })
     }
     
-    // Обновляем время последней активности
     user.last_active = new Date().toISOString()
     writeDB(db)
     
-    // Логируем вход
     const logs = db.logs || []
     logs.push({
       id: Date.now(),
       action: 'login',
       user_id: user.id,
       user_name: user.name,
-      details: `Вход в систему`,
+      details: 'Вход в систему',
       timestamp: new Date().toISOString(),
       level: 'info'
     })
-    db.logs = logs
+    db.logs = logs.slice(-1000)
     writeDB(db)
     
-    // Отправляем данные пользователя без пароля
     const { password: _, ...userWithoutPassword } = user
     
     res.json({
@@ -795,14 +1268,12 @@ app.post('/api/login', async (req, res) => {
   }
 })
 
-// ========== Эндпоинты для админ-панели ==========
+// ========== Админ-панель ==========
 
-// Получение статистики для дашборда
 app.get('/api/admin/stats', (req, res) => {
   try {
     const db = readDB()
     
-    // Статистика по пользователям
     const users = db.users || []
     const activeToday = users.filter(u => {
       const lastActive = u.last_active ? new Date(u.last_active) : null
@@ -810,17 +1281,14 @@ app.get('/api/admin/stats', (req, res) => {
       return lastActive && lastActive.toDateString() === today.toDateString()
     }).length
 
-    // Статистика по резюме
     const resumes = db.resumes || []
     const totalResumes = resumes.filter(r => r.is_active === true).length
     const aiDetections = resumes.filter(r => r.analysis?.aiProbability > 50).length
 
-    // Статистика по поискам (логируем в отдельной коллекции)
     const logs = db.logs || []
     const totalSearches = logs.filter(l => l.action === 'search_candidates').length
     const totalMeetings = logs.filter(l => l.action === 'schedule_meeting').length
 
-    // Конверсия (пример)
     const conversionRate = totalSearches > 0 
       ? Math.round((totalMeetings / totalSearches) * 100) 
       : 0
@@ -829,11 +1297,11 @@ app.get('/api/admin/stats', (req, res) => {
       stats: {
         totalUsers: users.length,
         activeUsers: activeToday,
-        totalSearches: totalSearches,
-        totalMeetings: totalMeetings,
-        totalResumes: totalResumes,
-        aiDetections: aiDetections,
-        conversionRate: conversionRate
+        totalSearches,
+        totalMeetings,
+        totalResumes,
+        aiDetections,
+        conversionRate
       }
     })
   } catch (error) {
@@ -842,7 +1310,6 @@ app.get('/api/admin/stats', (req, res) => {
   }
 })
 
-// Получение списка пользователей
 app.get('/api/admin/users', (req, res) => {
   try {
     const db = readDB()
@@ -861,250 +1328,11 @@ app.get('/api/admin/users', (req, res) => {
   }
 })
 
-// Создание нового пользователя
-app.post('/api/admin/users', async (req, res) => {
-  try {
-    const { name, email, password, role, status, admin_id, admin_name } = req.body
-    
-    // Валидация
-    if (!name || !email || !password) {
-      return res.status(400).json({ error: 'Имя, email и пароль обязательны' })
-    }
-    
-    if (password.length < 6) {
-      return res.status(400).json({ error: 'Пароль должен содержать не менее 6 символов' })
-    }
-    
-    // Проверка формата email
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    if (!emailRegex.test(email)) {
-      return res.status(400).json({ error: 'Неверный формат email' })
-    }
-    
-    const db = readDB()
-    
-    // Проверка на существующего пользователя
-    const existingUser = db.users.find(u => u.email === email.toLowerCase().trim())
-    if (existingUser) {
-      return res.status(400).json({ error: 'Пользователь с таким email уже существует' })
-    }
-    
-    // Хэшируем пароль
-    const hashedPassword = await hashPassword(password)
-    
-    // Создание нового пользователя
-    const newUser = {
-      id: Date.now(),
-      name: name.trim(),
-      email: email.toLowerCase().trim(),
-      password: hashedPassword,
-      role: role || 'user',
-      status: status || 'active',
-      created_at: new Date().toISOString(),
-      last_active: new Date().toISOString(),
-      searches_count: 0,
-      avatar: null
-    }
-    
-    db.users.push(newUser)
-    writeDB(db)
-    
-    // Логируем создание пользователя
-    const logs = db.logs || []
-    logs.push({
-      id: Date.now() + 1,
-      action: 'create_user',
-      user_id: admin_id || 'system',
-      user_name: admin_name || 'Система',
-      target: newUser.email,
-      details: `Создан пользователь ${newUser.name} с ролью ${newUser.role}`,
-      timestamp: new Date().toISOString(),
-      level: 'info'
-    })
-    db.logs = logs
-    writeDB(db)
-    
-    // Возвращаем созданного пользователя без пароля
-    const { password: _, ...userWithoutPassword } = newUser
-    
-    res.json({
-      success: true,
-      message: 'Пользователь успешно создан',
-      user: userWithoutPassword
-    })
-    
-  } catch (error) {
-    console.error('Error creating user:', error)
-    res.status(500).json({ error: 'Ошибка при создании пользователя' })
-  }
-})
-
-// Обновление пользователя
-app.put('/api/admin/users/:id', async (req, res) => {
-  try {
-    const userId = parseInt(req.params.id)
-    const { name, email, role, status, password, admin_id, admin_name } = req.body
-    
-    const db = readDB()
-    const userIndex = db.users.findIndex(u => u.id === userId)
-    
-    if (userIndex === -1) {
-      return res.status(404).json({ error: 'Пользователь не найден' })
-    }
-    
-    // Проверка email на уникальность (если меняется)
-    if (email && email !== db.users[userIndex].email) {
-      const existingUser = db.users.find(u => u.email === email.toLowerCase().trim() && u.id !== userId)
-      if (existingUser) {
-        return res.status(400).json({ error: 'Пользователь с таким email уже существует' })
-      }
-    }
-    
-    // Подготавливаем обновленные данные
-    const updatedUser = {
-      ...db.users[userIndex],
-      name: name || db.users[userIndex].name,
-      email: email ? email.toLowerCase().trim() : db.users[userIndex].email,
-      role: role || db.users[userIndex].role,
-      status: status || db.users[userIndex].status,
-      updated_at: new Date().toISOString()
-    }
-    
-    // Если передан новый пароль, хэшируем его
-    if (password) {
-      if (password.length < 6) {
-        return res.status(400).json({ error: 'Пароль должен содержать не менее 6 символов' })
-      }
-      updatedUser.password = await hashPassword(password)
-    }
-    
-    db.users[userIndex] = updatedUser
-    writeDB(db)
-    
-    // Логируем обновление
-    const logs = db.logs || []
-    logs.push({
-      id: Date.now(),
-      action: 'update_user',
-      user_id: admin_id || 'system',
-      user_name: admin_name || 'Система',
-      target: updatedUser.email,
-      details: `Обновлен пользователь ${updatedUser.name}`,
-      timestamp: new Date().toISOString(),
-      level: 'info'
-    })
-    db.logs = logs
-    writeDB(db)
-    
-    const { password: _, ...userWithoutPassword } = updatedUser
-    
-    res.json({
-      success: true,
-      message: 'Пользователь обновлен',
-      user: userWithoutPassword
-    })
-    
-  } catch (error) {
-    console.error('Error updating user:', error)
-    res.status(500).json({ error: 'Ошибка при обновлении пользователя' })
-  }
-})
-
-// Мягкое удаление пользователя (деактивация)
-app.delete('/api/admin/users/:id', (req, res) => {
-  try {
-    const userId = parseInt(req.params.id)
-    const { admin_id, admin_name } = req.body
-    
-    const db = readDB()
-    const userIndex = db.users.findIndex(u => u.id === userId)
-    
-    if (userIndex === -1) {
-      return res.status(404).json({ error: 'Пользователь не найден' })
-    }
-    
-    // Мягкое удаление - меняем статус на inactive
-    db.users[userIndex].status = 'inactive'
-    db.users[userIndex].deleted_at = new Date().toISOString()
-    
-    writeDB(db)
-    
-    // Логируем удаление
-    const logs = db.logs || []
-    logs.push({
-      id: Date.now(),
-      action: 'delete_user',
-      user_id: admin_id || 'system',
-      user_name: admin_name || 'Система',
-      target: db.users[userIndex].email,
-      details: `Деактивирован пользователь ${db.users[userIndex].name}`,
-      timestamp: new Date().toISOString(),
-      level: 'warning'
-    })
-    db.logs = logs
-    writeDB(db)
-    
-    res.json({
-      success: true,
-      message: 'Пользователь деактивирован'
-    })
-    
-  } catch (error) {
-    console.error('Error deleting user:', error)
-    res.status(500).json({ error: 'Ошибка при удалении пользователя' })
-  }
-})
-
-// Полное удаление пользователя (только для админа)
-app.delete('/api/admin/users/:id/permanent', (req, res) => {
-  try {
-    const userId = parseInt(req.params.id)
-    const { admin_id, admin_name } = req.body
-    
-    const db = readDB()
-    const userIndex = db.users.findIndex(u => u.id === userId)
-    
-    if (userIndex === -1) {
-      return res.status(404).json({ error: 'Пользователь не найден' })
-    }
-    
-    const deletedUser = db.users[userIndex]
-    db.users.splice(userIndex, 1)
-    writeDB(db)
-    
-    // Логируем полное удаление
-    const logs = db.logs || []
-    logs.push({
-      id: Date.now(),
-      action: 'permanent_delete_user',
-      user_id: admin_id || 'system',
-      user_name: admin_name || 'Система',
-      target: deletedUser.email,
-      details: `Полностью удален пользователь ${deletedUser.name}`,
-      timestamp: new Date().toISOString(),
-      level: 'error'
-    })
-    db.logs = logs
-    writeDB(db)
-    
-    res.json({
-      success: true,
-      message: 'Пользователь полностью удален'
-    })
-    
-  } catch (error) {
-    console.error('Error permanently deleting user:', error)
-    res.status(500).json({ error: 'Ошибка при полном удалении пользователя' })
-  }
-})
-
-// Получение последних действий
 app.get('/api/admin/recent-activities', (req, res) => {
   try {
     const db = readDB()
     const logs = db.logs || []
     
-    // Сортируем по дате (сначала новые)
     const recentActivities = logs
       .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
       .slice(0, 10)
@@ -1120,7 +1348,7 @@ app.get('/api/admin/recent-activities', (req, res) => {
           target: log.target || '-',
           time: formatTimeAgo(log.timestamp),
           timestamp: log.timestamp,
-          status: status
+          status
         }
       })
     
@@ -1131,79 +1359,8 @@ app.get('/api/admin/recent-activities', (req, res) => {
   }
 })
 
-// Получение системных логов
-app.get('/api/admin/logs', (req, res) => {
-  try {
-    const db = readDB()
-    const page = parseInt(req.query.page) || 1
-    const limit = parseInt(req.query.limit) || 20
-    const startIndex = (page - 1) * limit
-    
-    const logs = db.logs || []
-    
-    // Сортируем по дате (сначала новые)
-    const sortedLogs = logs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
-    
-    const paginatedLogs = sortedLogs.slice(startIndex, startIndex + limit)
-    
-    res.json({
-      logs: paginatedLogs,
-      pagination: {
-        total: logs.length,
-        page: page,
-        limit: limit,
-        pages: Math.ceil(logs.length / limit)
-      }
-    })
-  } catch (error) {
-    console.error('Error getting logs:', error)
-    res.status(500).json({ error: 'Failed to get logs' })
-  }
-})
+// ========== Обратная связь ==========
 
-// Логирование действий пользователей
-app.post('/api/log', (req, res) => {
-  try {
-    const { action, user_id, user_name, target, details } = req.body
-    
-    const db = readDB()
-    
-    if (!db.logs) {
-      db.logs = []
-    }
-    
-    const logEntry = {
-      id: Date.now(),
-      action: action,
-      user_id: user_id || 'system',
-      user_name: user_name || 'Система',
-      target: target,
-      details: details,
-      timestamp: new Date().toISOString(),
-      level: 'info',
-      ip: req.ip || req.connection.remoteAddress,
-      user_agent: req.headers['user-agent']
-    }
-    
-    db.logs.push(logEntry)
-    
-    // Ограничиваем количество логов (храним последние 1000)
-    if (db.logs.length > 1000) {
-      db.logs = db.logs.slice(-1000)
-    }
-    
-    writeDB(db)
-    
-    res.json({ success: true, id: logEntry.id })
-  } catch (error) {
-    console.error('Error logging:', error)
-    res.status(500).json({ error: 'Failed to log' })
-  }
-})
-
-// ========== Эндпоинты для обратной связи ==========
-
-// Отправка обратной связи
 app.post('/api/feedback', (req, res) => {
   try {
     const { message, userId, userName, userEmail, userRole } = req.body
@@ -1214,7 +1371,6 @@ app.post('/api/feedback', (req, res) => {
 
     const db = readDB()
     
-    // Создаем запись обратной связи
     const feedbackEntry = {
       id: Date.now(),
       message: message.trim(),
@@ -1223,36 +1379,18 @@ app.post('/api/feedback', (req, res) => {
       user_email: userEmail || '',
       user_role: userRole || 'guest',
       created_at: new Date().toISOString(),
-      sent_at: new Date().toISOString(),
       is_read: false,
       read_at: null,
       status: 'new',
       ip_address: req.ip || req.connection.remoteAddress,
-      user_agent: req.headers['user-agent'],
-      session_id: req.headers['x-session-id'] || null
+      user_agent: req.headers['user-agent']
     }
     
-    // Инициализируем массив feedback, если его нет
     if (!db.feedback) {
       db.feedback = []
     }
     
     db.feedback.push(feedbackEntry)
-    writeDB(db)
-    
-    // Логируем получение反馈
-    const logs = db.logs || []
-    logs.push({
-      id: Date.now() + 1,
-      action: 'send_feedback',
-      user_id: userId || 'anonymous',
-      user_name: userName || 'Гость',
-      target: 'feedback',
-      details: `Отправлена обратная связь`,
-      timestamp: new Date().toISOString(),
-      level: 'info'
-    })
-    db.logs = logs
     writeDB(db)
     
     console.log('Feedback saved:', feedbackEntry.id)
@@ -1269,218 +1407,29 @@ app.post('/api/feedback', (req, res) => {
   }
 })
 
-// Получение всех сообщений обратной связи (для админа)
-app.get('/api/feedback/all', (req, res) => {
+app.get('/api/admin/feedback', (req, res) => {
   try {
     const db = readDB()
-    const feedbackList = db.feedback || []
-    
-    // Сортируем по дате создания (сначала новые)
-    feedbackList.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-    
-    res.json({ feedback: feedbackList })
-  } catch (error) {
-    console.error('Error getting feedback:', error)
-    res.status(500).json({ error: 'Failed to get feedback' })
-  }
-})
-
-// Получение сообщений обратной связи пользователя
-app.get('/api/feedback/user/:userId', (req, res) => {
-  try {
-    const db = readDB()
-    const userId = req.params.userId
     const feedbackList = (db.feedback || [])
-      .filter(f => f.user_id === userId)
+      .map(feedback => ({
+        id: feedback.id,
+        user_name: feedback.user_name || 'Гость',
+        user_email: feedback.user_email || 'Не указан',
+        user_id: feedback.user_id,
+        message: feedback.message,
+        created_at: feedback.created_at,
+        status: feedback.status || 'new',
+        is_read: feedback.is_read || false
+      }))
       .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
     
     res.json({ feedback: feedbackList })
   } catch (error) {
-    console.error('Error getting user feedback:', error)
-    res.status(500).json({ error: 'Failed to get user feedback' })
-  }
-})
-
-// Получение конкретного сообщения обратной связи
-app.get('/api/feedback/:id', (req, res) => {
-  try {
-    const db = readDB()
-    const feedback = (db.feedback || []).find(f => f.id == req.params.id)
-    
-    if (feedback) {
-      res.json(feedback)
-    } else {
-      res.status(404).json({ error: 'Feedback not found' })
-    }
-  } catch (error) {
     console.error('Error getting feedback:', error)
     res.status(500).json({ error: 'Failed to get feedback' })
   }
 })
 
-// Отметить сообщение как прочитанное (для админа)
-app.put('/api/feedback/:id/read', (req, res) => {
-  try {
-    const db = readDB()
-    const index = (db.feedback || []).findIndex(f => f.id == req.params.id)
-    
-    if (index !== -1) {
-      db.feedback[index].is_read = true
-      db.feedback[index].read_at = new Date().toISOString()
-      
-      writeDB(db)
-      
-      res.json({ 
-        success: true, 
-        message: 'Feedback marked as read',
-        feedback: db.feedback[index]
-      })
-    } else {
-      res.status(404).json({ error: 'Feedback not found' })
-    }
-  } catch (error) {
-    console.error('Error marking feedback as read:', error)
-    res.status(500).json({ error: 'Failed to mark feedback as read' })
-  }
-})
-
-// Обновить статус сообщения (для админа)
-app.put('/api/feedback/:id/status', (req, res) => {
-  try {
-    const { status } = req.body
-    const validStatuses = ['new', 'in_progress', 'resolved']
-    
-    if (!validStatuses.includes(status)) {
-      return res.status(400).json({ error: 'Invalid status' })
-    }
-    
-    const db = readDB()
-    const index = (db.feedback || []).findIndex(f => f.id == req.params.id)
-    
-    if (index !== -1) {
-      db.feedback[index].status = status
-      db.feedback[index].updated_at = new Date().toISOString()
-      
-      writeDB(db)
-      
-      res.json({ 
-        success: true, 
-        message: 'Feedback status updated',
-        feedback: db.feedback[index]
-      })
-    } else {
-      res.status(404).json({ error: 'Feedback not found' })
-    }
-  } catch (error) {
-    console.error('Error updating feedback status:', error)
-    res.status(500).json({ error: 'Failed to update feedback status' })
-  }
-})
-
-// Удалить сообщение обратной связи (для админа)
-app.delete('/api/feedback/:id', (req, res) => {
-  try {
-    const db = readDB()
-    const index = (db.feedback || []).findIndex(f => f.id == req.params.id)
-    
-    if (index !== -1) {
-      db.feedback.splice(index, 1)
-      writeDB(db)
-      
-      res.json({ success: true, message: 'Feedback deleted' })
-    } else {
-      res.status(404).json({ error: 'Feedback not found' })
-    }
-  } catch (error) {
-    console.error('Error deleting feedback:', error)
-    res.status(500).json({ error: 'Failed to delete feedback' })
-  }
-})
-
-// Получить статистику по обратной связи (для админа)
-app.get('/api/feedback/stats', (req, res) => {
-  try {
-    const db = readDB()
-    const feedback = db.feedback || []
-    
-    const stats = {
-      total: feedback.length,
-      new: feedback.filter(f => f.status === 'new').length,
-      in_progress: feedback.filter(f => f.status === 'in_progress').length,
-      resolved: feedback.filter(f => f.status === 'resolved').length,
-      unread: feedback.filter(f => !f.is_read).length,
-      by_user: {},
-      by_date: {}
-    }
-    
-    // Статистика по пользователям
-    feedback.forEach(f => {
-      const userId = f.user_id
-      if (!stats.by_user[userId]) {
-        stats.by_user[userId] = {
-          user_name: f.user_name,
-          count: 0
-        }
-      }
-      stats.by_user[userId].count++
-    })
-    
-    res.json({ stats })
-  } catch (error) {
-    console.error('Error getting feedback stats:', error)
-    res.status(500).json({ error: 'Failed to get feedback stats' })
-  }
-})
-
-// ========== Эндпоинты для обращений пользователей ==========
-
-// Получение всех обращений
-app.get('/api/admin/feedback', (req, res) => {
-  try {
-    const db = readDB()
-    const feedbackList = (db.feedback || []).map(feedback => ({
-      id: feedback.id,
-      user_name: feedback.user_name || 'Гость',
-      user_email: feedback.user_email || 'Не указан',
-      user_id: feedback.user_id,
-      message: feedback.message,
-      created_at: feedback.created_at,
-      status: feedback.status || 'new',
-      is_read: feedback.is_read || false
-    }))
-    
-    // Сортируем по дате (сначала новые)
-    feedbackList.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-    
-    res.json({ feedback: feedbackList })
-  } catch (error) {
-    console.error('Error getting feedback:', error)
-    res.status(500).json({ error: 'Failed to get feedback' })
-  }
-})
-
-// Получение статистики по обращениям
-app.get('/api/admin/feedback/stats', (req, res) => {
-  try {
-    const db = readDB()
-    const feedback = db.feedback || []
-    
-    const stats = {
-      total: feedback.length,
-      new: feedback.filter(f => f.status === 'new').length,
-      in_progress: feedback.filter(f => f.status === 'in_progress').length,
-      resolved: feedback.filter(f => f.status === 'resolved').length,
-      unread: feedback.filter(f => !f.is_read).length
-    }
-    
-    res.json({ stats })
-  } catch (error) {
-    console.error('Error getting feedback stats:', error)
-    res.status(500).json({ error: 'Failed to get feedback stats' })
-  }
-})
-
-// Обновление статуса обращения
 app.put('/api/admin/feedback/:id/status', (req, res) => {
   try {
     const feedbackId = parseInt(req.params.id)
@@ -1500,22 +1449,6 @@ app.put('/api/admin/feedback/:id/status', (req, res) => {
     
     db.feedback[index].status = status
     db.feedback[index].updated_at = new Date().toISOString()
-    
-    writeDB(db)
-    
-    // Логируем изменение статуса
-    const logs = db.logs || []
-    logs.push({
-      id: Date.now(),
-      action: 'update_feedback_status',
-      user_id: req.body.admin_id || 'system',
-      user_name: req.body.admin_name || 'Система',
-      target: `Feedback #${feedbackId}`,
-      details: `Статус изменен на ${status}`,
-      timestamp: new Date().toISOString(),
-      level: 'info'
-    })
-    db.logs = logs
     writeDB(db)
     
     res.json({ 
@@ -1530,72 +1463,362 @@ app.put('/api/admin/feedback/:id/status', (req, res) => {
   }
 })
 
-// Отметить обращение как прочитанное
-app.put('/api/admin/feedback/:id/read', (req, res) => {
+// ========== Встречи (прокси к Python) ==========
+
+// Получение всех встреч пользователя
+app.get('/api/meetings', async (req, res) => {
   try {
-    const feedbackId = parseInt(req.params.id)
+    const userId = req.query.userId
     
-    const db = readDB()
-    const index = (db.feedback || []).findIndex(f => f.id === feedbackId)
-    
-    if (index === -1) {
-      return res.status(404).json({ error: 'Feedback not found' })
+    if (!userId) {
+      return res.status(400).json({ error: 'User ID is required' })
     }
     
-    db.feedback[index].is_read = true
-    db.feedback[index].read_at = new Date().toISOString()
+    const aiAvailable = await checkAIServices()
     
-    writeDB(db)
+    if (aiAvailable) {
+      // Проксируем к Python API
+      const url = `${AI_SERVICES_URL}/api/meetings?user_id=${userId}`
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' }
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        return res.json(data)
+      }
+    }
+    
+    // Fallback - возвращаем из локальной БД
+    const db = readDB()
+    const userMeetings = (db.meetings || [])
+      .filter(m => m.user_id == userId || m.created_by == userId)
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
     
     res.json({ 
-      success: true, 
-      message: 'Feedback marked as read',
-      feedback: db.feedback[index]
+      meetings: userMeetings,
+      total: userMeetings.length,
+      source: 'local_db'
     })
     
   } catch (error) {
-    console.error('Error marking feedback as read:', error)
-    res.status(500).json({ error: 'Failed to mark feedback as read' })
+    console.error('Error getting meetings:', error)
+    res.status(500).json({ error: 'Failed to get meetings' })
   }
 })
 
-// Удаление обращения
-app.delete('/api/admin/feedback/:id', (req, res) => {
+// Получение встречи по ID
+app.get('/api/meetings/:id', async (req, res) => {
   try {
-    const feedbackId = parseInt(req.params.id)
-    const { admin_id, admin_name } = req.body
+    const aiAvailable = await checkAIServices()
     
-    const db = readDB()
-    const index = (db.feedback || []).findIndex(f => f.id === feedbackId)
-    
-    if (index === -1) {
-      return res.status(404).json({ error: 'Feedback not found' })
+    if (aiAvailable) {
+      const url = `${AI_SERVICES_URL}/api/meetings/${req.params.id}`
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' }
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        return res.json(data)
+      }
     }
     
-    const deletedFeedback = db.feedback[index]
-    db.feedback.splice(index, 1)
-    writeDB(db)
+    // Fallback
+    const db = readDB()
+    const meeting = (db.meetings || []).find(m => m.id == req.params.id)
     
-    // Логируем удаление
-    const logs = db.logs || []
-    logs.push({
-      id: Date.now(),
-      action: 'delete_feedback',
-      user_id: admin_id || 'system',
-      user_name: admin_name || 'Система',
-      target: `Feedback #${feedbackId}`,
-      details: `Удалено обращение от ${deletedFeedback.user_name}`,
-      timestamp: new Date().toISOString(),
-      level: 'warning'
-    })
-    db.logs = logs
-    writeDB(db)
-    
-    res.json({ success: true, message: 'Feedback deleted' })
+    if (meeting) {
+      res.json({ meeting, source: 'local_db' })
+    } else {
+      res.status(404).json({ error: 'Meeting not found' })
+    }
     
   } catch (error) {
-    console.error('Error deleting feedback:', error)
-    res.status(500).json({ error: 'Failed to delete feedback' })
+    console.error('Error getting meeting:', error)
+    res.status(500).json({ error: 'Failed to get meeting' })
+  }
+})
+
+// Создание встречи
+app.post('/api/meetings', async (req, res) => {
+  try {
+    const aiAvailable = await checkAIServices()
+    
+    if (aiAvailable) {
+      const url = `${AI_SERVICES_URL}/api/meetings`
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(req.body)
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        
+        // Также сохраняем в локальную БД для синхронизации
+        const db = readDB()
+        if (!db.meetings) db.meetings = []
+        db.meetings.push({
+          ...req.body,
+          id: data.meeting?.id || Date.now(),
+          created_at: new Date().toISOString(),
+          source: 'postgres'
+        })
+        writeDB(db)
+        
+        return res.json(data)
+      }
+    }
+    
+    // Fallback - сохраняем в локальную БД
+    const db = readDB()
+    const newMeeting = {
+      id: Date.now(),
+      ...req.body,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      status: req.body.status || 'scheduled',
+      source: 'local_db'
+    }
+    
+    if (!db.meetings) db.meetings = []
+    db.meetings.push(newMeeting)
+    writeDB(db)
+    
+    console.log(`Meeting saved to local DB with ID: ${newMeeting.id}`)
+    
+    res.json({
+      success: true,
+      meeting: newMeeting,
+      source: 'local_db'
+    })
+    
+  } catch (error) {
+    console.error('Error creating meeting:', error)
+    res.status(500).json({ error: 'Failed to create meeting' })
+  }
+})
+
+// Обновление статуса встречи
+app.put('/api/meetings/:id/status', async (req, res) => {
+  try {
+    const aiAvailable = await checkAIServices()
+    
+    if (aiAvailable) {
+      const url = `${AI_SERVICES_URL}/api/meetings/${req.params.id}/status`
+      const response = await fetch(url, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(req.body)
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        return res.json(data)
+      }
+    }
+    
+    // Fallback
+    const db = readDB()
+    const index = (db.meetings || []).findIndex(m => m.id == req.params.id)
+    
+    if (index !== -1) {
+      db.meetings[index].status = req.body.status
+      db.meetings[index].notes = req.body.notes || db.meetings[index].notes
+      db.meetings[index].outcome = req.body.outcome || db.meetings[index].outcome
+      db.meetings[index].updated_at = new Date().toISOString()
+      writeDB(db)
+      
+      res.json({
+        success: true,
+        meeting: db.meetings[index],
+        source: 'local_db'
+      })
+    } else {
+      res.status(404).json({ error: 'Meeting not found' })
+    }
+    
+  } catch (error) {
+    console.error('Error updating meeting:', error)
+    res.status(500).json({ error: 'Failed to update meeting' })
+  }
+})
+
+// Получение статистики по встречам
+app.get('/api/meetings/stats', async (req, res) => {
+  try {
+    const userId = req.query.userId
+    const aiAvailable = await checkAIServices()
+    
+    if (aiAvailable) {
+      const url = `${AI_SERVICES_URL}/api/meetings/stats${userId ? `?user_id=${userId}` : ''}`
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' }
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        return res.json(data)
+      }
+    }
+    
+    // Fallback
+    const db = readDB()
+    let meetings = db.meetings || []
+    
+    if (userId) {
+      meetings = meetings.filter(m => m.user_id == userId || m.created_by == userId)
+    }
+    
+    const stats = {
+      total: meetings.length,
+      scheduled: meetings.filter(m => m.status === 'scheduled').length,
+      completed: meetings.filter(m => m.status === 'completed').length,
+      cancelled: meetings.filter(m => m.status === 'cancelled').length,
+      upcoming: meetings.filter(m => 
+        m.status === 'scheduled' && new Date(m.start_time) > new Date()
+      ).length,
+      with_resume: meetings.filter(m => m.resume_id).length,
+      source: 'local_db'
+    }
+    
+    res.json({ stats })
+    
+  } catch (error) {
+    console.error('Error getting meeting stats:', error)
+    res.status(500).json({ error: 'Failed to get meeting stats' })
+  }
+})
+
+app.post('/api/ai/calendar/create', async (req, res) => {
+  try {
+    const eventData = req.body
+    
+    console.log('[NODE] Received calendar event request:', JSON.stringify(eventData, null, 2))
+    
+    // Сохраняем в локальную БД в любом случае
+    const db = readDB()
+    const newMeeting = {
+      id: Date.now(),
+      title: eventData.title || 'Собеседование',
+      description: eventData.description || '',
+      start_time: eventData.start_time,
+      duration_minutes: eventData.duration_minutes || 60,
+      candidate_email: eventData.candidate_email,
+      candidate_name: eventData.candidate_name || '',
+      candidate_position: eventData.candidate_position || '',
+      interviewer_email: eventData.interviewer_email || '',
+      interviewer_name: eventData.interviewer_name || '',
+      resume_id: eventData.resume_id || null,
+      user_id: eventData.user_id || null,
+      status: 'scheduled',
+      created_at: new Date().toISOString(),
+      source: 'node_local'
+    }
+    
+    if (!db.meetings) db.meetings = []
+    db.meetings.push(newMeeting)
+    writeDB(db)
+    
+    console.log('[NODE] Meeting saved to local DB with ID:', newMeeting.id)
+    
+    // Пробуем проксировать к Python, но если не получится - возвращаем локальный результат
+    const aiAvailable = await checkAIServices()
+    
+    if (aiAvailable) {
+      try {
+        const url = `${AI_SERVICES_URL}/api/calendar/create`
+        
+        // Отправляем точно такие же данные
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(eventData)
+        })
+        
+        if (response.ok) {
+          const data = await response.json()
+          console.log('[NODE] Python calendar event created')
+          
+          // Обновляем локальную запись данными из Python
+          newMeeting.calendar_event_id = data.event_id
+          newMeeting.calendar_link = data.links?.html
+          newMeeting.source = 'postgres'
+          writeDB(db)
+          
+          return res.json({
+            ...data,
+            db_meeting_id: newMeeting.id,
+            db_saved: true
+          })
+        } else {
+          const errorText = await response.text()
+          console.warn('[NODE] Python API error, using local only:', errorText)
+        }
+      } catch (error) {
+        console.warn('[NODE] Python API unavailable, using local only:', error.message)
+      }
+    }
+    
+    // Возвращаем локальный результат
+    return res.json({
+      status: 'created_local',
+      event_id: `local_${newMeeting.id}`,
+      db_meeting_id: newMeeting.id,
+      db_saved: true,
+      meeting: newMeeting,
+      links: {
+        html: 'https://calendar.yandex.ru'
+      }
+    })
+    
+  } catch (error) {
+    console.error('[NODE] Error in calendar create:', error)
+    res.status(500).json({ error: error.message })
+  }
+})
+
+// ========== Логирование ==========
+
+app.post('/api/log', (req, res) => {
+  try {
+    const { action, user_id, user_name, target, details } = req.body
+    
+    const db = readDB()
+    
+    if (!db.logs) {
+      db.logs = []
+    }
+    
+    const logEntry = {
+      id: Date.now(),
+      action,
+      user_id: user_id || 'system',
+      user_name: user_name || 'Система',
+      target,
+      details,
+      timestamp: new Date().toISOString(),
+      level: 'info',
+      ip: req.ip || req.connection.remoteAddress,
+      user_agent: req.headers['user-agent']
+    }
+    
+    db.logs.push(logEntry)
+    
+    if (db.logs.length > 1000) {
+      db.logs = db.logs.slice(-1000)
+    }
+    
+    writeDB(db)
+    
+    res.json({ success: true, id: logEntry.id })
+  } catch (error) {
+    console.error('Error logging:', error)
+    res.status(500).json({ error: 'Failed to log' })
   }
 })
 
@@ -1630,14 +1853,6 @@ function getActionName(action) {
     'check_resume': 'Проверка резюме на ИИ',
     'search_candidates': 'Поиск кандидатов',
     'schedule_meeting': 'Создание встречи',
-    'view_candidate': 'Просмотр кандидата',
-    'export_data': 'Экспорт данных',
-    'delete_resume': 'Удаление резюме',
-    'update_settings': 'Изменение настроек',
-    'create_user': 'Создание пользователя',
-    'update_user': 'Обновление пользователя',
-    'delete_user': 'Деактивация пользователя',
-    'permanent_delete_user': 'Полное удаление пользователя',
     'send_feedback': 'Отправка обратной связи'
   }
   return actions[action] || action
@@ -1666,50 +1881,38 @@ function getPlural(n, one, few, many) {
   return many
 }
 
-// ========== Запуск сервера ==========
-
-app.listen(PORT, () => {
-  console.log(`
-  Сервер успешно запущен!
-  URL: http://localhost:${PORT}
-  Папка загрузок: ${uploadDir}
-  База данных: ${DB_PATH}
-  
-  Доступные endpoints:
-  GET  /api/health
-  POST /api/login
-  POST /api/resumes/upload
-  GET  /api/resumes?userId=...
-  GET  /api/resumes/all
-  GET  /api/resumes/:id
-  GET  /api/resumes/:id/view
-  DELETE /api/resumes/:id
-  DELETE /api/resumes/:id/permanent
-  POST /api/resumes/:id/restore
-  POST /api/resumes/:id/analyze
-  POST /api/candidates/search
-  POST /api/log
-  POST /api/feedback
-  GET  /api/feedback/all
-  GET  /api/feedback/user/:userId
-  PUT  /api/feedback/:id/read
-  PUT  /api/feedback/:id/status
-  DELETE /api/feedback/:id
-  GET  /api/feedback/stats
-  GET  /api/admin/stats
-  GET  /api/admin/users
-  POST /api/admin/users
-  PUT  /api/admin/users/:id
-  DELETE /api/admin/users/:id
-  DELETE /api/admin/users/:id/permanent
-  GET  /api/admin/recent-activities
-  GET  /api/admin/logs
-  
-  Проверьте: http://localhost:${PORT}/api/health
-  `)
-})
+// ========== Обработка ошибок ==========
 
 app.use((err, req, res, next) => {
-  console.error('❌ Server error:', err)
+  console.error('Server error:', err)
   res.status(500).json({ error: err.message })
+})
+
+// ========== Запуск сервера ==========
+
+app.listen(PORT, async () => {
+  const aiAvailable = await checkAIServices()
+  
+  console.log(`
+TALKPRO SERVER STARTED                    
+Node.js Server:  http://localhost:${PORT}                      
+AI Services:     ${AI_SERVICES_URL} (${aiAvailable ? 'available' : 'unavailable'})
+Uploads:         ${uploadDir}
+Database:        ${DB_PATH}
+Endpoints:                                                     
+  GET  /api/health              - Health check                  
+  POST /api/login               - Authentication               
+  POST /api/resumes/upload      - Upload resume                
+  GET  /api/resumes             - Get user resumes             
+  POST /api/resumes/:id/analyze - AI analysis                  
+  POST /api/candidates/search   - Search with AI               
+  POST /api/feedback            - Send feedback                
+  GET  /api/admin/stats         - Admin statistics             
+
+AI Proxy Endpoints:                                            
+  POST /api/ai/evaluate         - Single Agent evaluation      
+  POST /api/ai/detect-ai        - AI detection                 
+  POST /api/ai/find-exaggerations - Find exaggerations         
+  GET  /api/ai/health           - AI services health           
+  `)
 })

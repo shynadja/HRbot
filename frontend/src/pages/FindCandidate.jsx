@@ -1,215 +1,124 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { Search, FileText, Check, ChevronDown, ChevronUp, AlertCircle, Loader } from 'lucide-react'
 import CandidateCard from '../components/CandidateCard'
-import { api } from '../services/api'
+import ResumeCard from '../components/ResumeCard'
 import { useAuth } from '../hooks/useAuth'
+import { useResumes } from '../hooks/useResumes'
+import { useSearch } from '../hooks/useSearch'
+import { useUI } from '../hooks/useUI'
 import './FindCandidate.css'
 
 const FindCandidate = () => {
   const navigate = useNavigate()
   const location = useLocation()
   const { user } = useAuth()
-  const [searchQuery, setSearchQuery] = useState('')
-  const [isSearching, setIsSearching] = useState(false)
-  const [searchResults, setSearchResults] = useState([])
-  const [error, setError] = useState(null)
-  const [searchInfo, setSearchInfo] = useState(null)
   
-  // Состояния для выбора резюме
-  const [selectedResumes, setSelectedResumes] = useState([])
-  const [showResumeSelector, setShowResumeSelector] = useState(false)
-  const [uploadedResumes, setUploadedResumes] = useState([])
-  const [isLoading, setIsLoading] = useState(true)
+  const {
+    items: uploadedResumes,
+    selectedIds: selectedResumes,
+    isLoading: isLoadingResumes,
+    loadResumes,
+    toggleSelection,
+    selectAll,
+    isSelected,
+    setSelection,
+    getAnalysisResult
+  } = useResumes()
+  
+  const {
+    query: searchQuery,
+    results: searchResults,
+    aiUsed,
+    isSearching,
+    error: searchError,
+    search,
+    setQuery
+  } = useSearch()
+  
+  const {
+    showResumeSelector: { findCandidate: showResumeSelector },
+    toggleSelector,
+    showNotification
+  } = useUI()
+  
+  const [error, setError] = useState(null)
 
-  // Функция загрузки резюме с useCallback
-  const loadResumes = useCallback(async () => {
-    setIsLoading(true)
-    try {
-      // Передаем ID пользователя
-      const data = await api.getResumes(user?.id)
-      console.log('Загруженные резюме для поиска:', data)
-      setUploadedResumes(data.resumes || [])
-    } catch (error) {
-      console.error('Error loading resumes:', error)
-      setError('Не удалось загрузить список резюме')
-    } finally {
-      setIsLoading(false)
-    }
-  }, [user?.id])
-
-  // Загружаем резюме при монтировании
   useEffect(() => {
-    loadResumes()
-    
-    // Если передан массив выбранных резюме из UploadResume
+    if (user?.id) {
+      loadResumes(user.id)
+    }
+  }, [loadResumes, user?.id])
+
+  useEffect(() => {
     if (location.state?.selectedResumes) {
-      setSelectedResumes(location.state.selectedResumes)
+      setSelection(location.state.selectedResumes)
     }
-    
-    // Восстанавливаем результаты поиска из sessionStorage
-    const savedResults = sessionStorage.getItem('findCandidateResults')
-    if (savedResults) {
-      const parsed = JSON.parse(savedResults)
-      setSearchResults(parsed.candidates || [])
-      setSearchInfo(parsed.info || null)
-    }
-    
-    // Восстанавливаем поисковый запрос
-    const savedQuery = sessionStorage.getItem('findCandidateQuery')
-    if (savedQuery) {
-      setSearchQuery(savedQuery)
-    }
-    
-    // Восстанавливаем выбранные резюме
-    const savedSelected = sessionStorage.getItem('findCandidateSelected')
-    if (savedSelected) {
-      setSelectedResumes(JSON.parse(savedSelected))
-    }
-  }, [location.state, loadResumes])
-
-  // Сохраняем результаты в sessionStorage при изменении
-  useEffect(() => {
-    if (searchResults.length > 0 && searchInfo) {
-      sessionStorage.setItem('findCandidateResults', JSON.stringify({
-        candidates: searchResults,
-        info: searchInfo
-      }))
-    }
-  }, [searchResults, searchInfo])
-
-  // Сохраняем поисковый запрос
-  useEffect(() => {
-    if (searchQuery) {
-      sessionStorage.setItem('findCandidateQuery', searchQuery)
-    }
-  }, [searchQuery])
-
-  // Сохраняем выбранные резюме
-  useEffect(() => {
-    sessionStorage.setItem('findCandidateSelected', JSON.stringify(selectedResumes))
-  }, [selectedResumes])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state])
 
   const handleSearch = async () => {
     if (!searchQuery.trim() || selectedResumes.length === 0) {
-      setError('Пожалуйста, введите запрос и выберите резюме для поиска')
+      setError('Пожалуйста, введите запрос и выберите резюме')
       return
     }
     
-    setIsSearching(true)
     setError(null)
-    setSearchResults([])
-    setSearchInfo(null)
     
     try {
-      const results = await api.searchCandidates(searchQuery, selectedResumes)
-      
-      // Обогащаем результаты реальными данными из резюме
-      const enrichedCandidates = results.candidates.map(candidate => {
-        const resume = uploadedResumes.find(r => r.id === candidate.resume_id)
-        
-        // Формируем правильные списки для сильных сторон и улучшений
-        const strengths = [];
-        const improvements = [];
-        
-        // Сильные стороны (3 пункта)
-        if (candidate.strengths && candidate.strengths.length > 0) {
-          // Берем первые 3 из того, что пришло с сервера
-          for (let i = 0; i < Math.min(3, candidate.strengths.length); i++) {
-            strengths.push(candidate.strengths[i]);
-          }
-        }
-        
-        // Если не хватает до 3, добавляем пункты по умолчанию
-        const defaultStrengths = [
-          'Опыт работы с современными фреймворками',
-          'Хорошее знание TypeScript',
-          'Навыки командной работы'
-        ];
-        
-        while (strengths.length < 3) {
-          strengths.push(defaultStrengths[strengths.length]);
-        }
-        
-        // Что улучшить (2 пункта)
-        if (candidate.improvements && candidate.improvements.length > 0) {
-          // Берем первые 2 из того, что пришло с сервера
-          for (let i = 0; i < Math.min(2, candidate.improvements.length); i++) {
-            improvements.push(candidate.improvements[i]);
-          }
-        }
-        
-        // Если не хватает до 2, добавляем пункты по умолчанию
-        const defaultImprovements = [
-          'Не хватает опыта работы с GraphQL',
-          'Рекомендуется добавить пет-проекты'
-        ];
-        
-        while (improvements.length < 2) {
-          improvements.push(defaultImprovements[improvements.length]);
-        }
-        
-        return {
-          ...candidate,
-          // Используем реальные данные из резюме
-          firstName: resume?.first_name || candidate.firstName || 'Иван',
-          lastName: resume?.last_name || candidate.lastName || 'Иванов',
-          fullName: resume?.full_name || candidate.fullName || `${resume?.first_name || 'Иван'} ${resume?.last_name || 'Иванов'}`,
-          position: resume?.position || candidate.position || 'Разработчик',
-          experience: resume?.experience || candidate.experience || 'Опыт не указан',
-          skills: resume?.skills && resume.skills.length > 0 ? resume.skills : 
-                 (candidate.skills || ['React', 'JavaScript', 'HTML/CSS', 'CSS', 'Node.js']),
-          aiProbability: resume?.analysis?.aiProbability || candidate.aiProbability || Math.floor(Math.random() * 50),
-          suspiciousPhrases: resume?.analysis?.suspiciousPhrases || candidate.suspiciousPhrases || [],
-          strengths: strengths, // Теперь всегда 3 пункта
-          improvements: improvements // Теперь всегда 2 пункта
-        }
-      })
-      
-      setSearchInfo({
-        totalFound: results.total_found,
-        analyzedDeep: results.analyzed_deep,
-        cachedCount: results.cached_count || 0,
-        filters: {
-          search_query: searchQuery,
-          resumes_count: selectedResumes.length
-        }
-      })
-      
-      setSearchResults(enrichedCandidates)
-      
+      const result = await search(searchQuery, selectedResumes, user?.id)
+      showNotification(`Найдено ${result.totalFound} кандидатов`, 'success')
     } catch (err) {
       console.error('Ошибка поиска:', err)
       setError('Произошла ошибка при поиске кандидатов')
-    } finally {
-      setIsSearching(false)
     }
   }
 
-  const toggleResumeSelection = (resumeId) => {
-    setSelectedResumes(prev => {
-      if (prev.includes(resumeId)) {
-        return prev.filter(id => id !== resumeId)
-      } else {
-        if (prev.length < 10) {
-          return [...prev, resumeId]
-        } else {
-          setError('Можно выбрать не более 10 резюме для поиска')
-          return prev
-        }
+  // Функция для получения данных детекции ИИ из Redux
+  const getAIAnalysisData = (resumeId) => {
+    const analysisResult = getAnalysisResult(resumeId)
+    const resume = uploadedResumes.find(r => r.id === resumeId)
+    
+    // Приоритет: Redux analysisResults > resume.analysis
+    if (analysisResult) {
+      return {
+        aiProbability: analysisResult.aiProbability || 0,
+        suspiciousPhrases: analysisResult.suspiciousPhrases || []
+      }
+    }
+    
+    if (resume?.analysis) {
+      return {
+        aiProbability: resume.analysis.aiProbability || 0,
+        suspiciousPhrases: resume.analysis.suspiciousPhrases || []
+      }
+    }
+    
+    return {
+      aiProbability: 0,
+      suspiciousPhrases: []
+    }
+  }
+
+  // Обогащение кандидатов данными детекции ИИ
+  const enrichCandidatesWithAIData = (candidates) => {
+    return candidates.map(candidate => {
+      const aiData = getAIAnalysisData(candidate.resume_id)
+      return {
+        ...candidate,
+        aiProbability: aiData.aiProbability,
+        suspiciousPhrases: aiData.suspiciousPhrases
       }
     })
   }
 
-  const selectAllResumes = () => {
-    if (selectedResumes.length === uploadedResumes.length) {
-      setSelectedResumes([])
-    } else {
-      setSelectedResumes(uploadedResumes.map(r => r.id))
-    }
-  }
+  // Сортируем кандидатов по score (от высшего к низшему)
+  const sortedCandidates = [...searchResults].sort((a, b) => (b.score || 0) - (a.score || 0))
+  
+  // Обогащаем данными детекции ИИ
+  const enrichedCandidates = enrichCandidatesWithAIData(sortedCandidates)
 
-  if (isLoading) {
+  if (isLoadingResumes) {
     return (
       <div className="page-container">
         <div className="page-header">
@@ -236,11 +145,8 @@ const FindCandidate = () => {
           <div className="empty-state">
             <FileText size={48} />
             <h3>Нет загруженных резюме</h3>
-            <p>Сначала загрузите резюме для анализа кандидатов</p>
-            <button 
-              className="upload-btn"
-              onClick={() => navigate('/upload-resume')}
-            >
+            <p>Сначала загрузите резюме для анализа</p>
+            <button className="upload-btn" onClick={() => navigate('/upload-resume')}>
               Загрузить резюме
             </button>
           </div>
@@ -250,34 +156,30 @@ const FindCandidate = () => {
               Введите требования к кандидату и выберите резюме для анализа
             </p>
             
-            {/* Поле ввода требований */}
             <div className="search-input-wrapper">
               <input
                 type="text"
                 className={`search-input ${searchQuery ? 'has-text' : ''}`}
-                placeholder="Введите требования (например, Frontend разработчик со знанием React)..."
+                placeholder="Введите требования (например, Python разработчик от 3 лет)..."
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => setQuery(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
                 disabled={isSearching}
               />
               <Search size={24} className="search-icon" />
             </div>
 
-            {/* Селектор резюме */}
             <div className="resume-selector-section">
               <button 
                 className={`resume-selector-header ${showResumeSelector ? 'active' : ''}`}
-                onClick={() => setShowResumeSelector(!showResumeSelector)}
+                onClick={() => toggleSelector('findCandidate')}
               >
                 <div className="selector-title">
                   <FileText size={20} />
                   <span>Выбрать резюме</span>
                 </div>
                 <div className="selector-info">
-                  <span className="selected-count">
-                    Выбрано: {selectedResumes.length}
-                  </span>
+                  <span className="selected-count">Выбрано: {selectedResumes.length}</span>
                   {showResumeSelector ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
                 </div>
               </button>
@@ -285,7 +187,7 @@ const FindCandidate = () => {
               {showResumeSelector && (
                 <div className="resume-selector-dropdown">
                   <div className="selector-actions">
-                    <button className="select-all-btn" onClick={selectAllResumes}>
+                    <button className="select-all-btn" onClick={selectAll}>
                       <Check size={16} />
                       <span>{selectedResumes.length === uploadedResumes.length ? 'Снять все' : 'Выбрать все'}</span>
                     </button>
@@ -293,41 +195,18 @@ const FindCandidate = () => {
                   
                   <div className="resume-list">
                     {uploadedResumes.map(resume => (
-                      <div 
+                      <ResumeCard
                         key={resume.id}
-                        className={`resume-item ${selectedResumes.includes(resume.id) ? 'selected' : ''}`}
-                        onClick={() => toggleResumeSelection(resume.id)}
-                      >
-                        <div className="resume-checkbox">
-                          {selectedResumes.includes(resume.id) && <Check size={14} />}
-                        </div>
-                        <FileText size={20} className="resume-icon" />
-                        <div className="resume-info">
-                          <div className="resume-name">{resume.name}</div>
-                          <div className="resume-meta">
-                            <span>{resume.full_name || resume.candidate_name || 'Имя не указано'}</span>
-                            <span>•</span>
-                            <span>{resume.position || 'Должность не указана'}</span>
-                          </div>
-                          {resume.skills && resume.skills.length > 0 && (
-                            <div className="resume-skills">
-                              {resume.skills.slice(0, 3).map((skill, idx) => (
-                                <span key={idx} className="resume-skill-tag">{skill}</span>
-                              ))}
-                              {resume.skills.length > 3 && (
-                                <span className="resume-skill-tag more">+{resume.skills.length - 3}</span>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      </div>
+                        resume={resume}
+                        selected={isSelected(resume.id)}
+                        onSelect={toggleSelection}
+                      />
                     ))}
                   </div>
                 </div>
               )}
             </div>
             
-            {/* Кнопка поиска */}
             <button 
               className={`search-button ${searchQuery && selectedResumes.length > 0 ? 'active' : ''}`}
               onClick={handleSearch}
@@ -343,41 +222,27 @@ const FindCandidate = () => {
               )}
             </button>
 
-            {/* Информация о выбранных резюме */}
-            {!showResumeSelector && selectedResumes.length > 0 && !isSearching && searchResults.length === 0 && (
-              <div className="selected-info">
-                <p>Выбрано резюме: <strong>{selectedResumes.length}</strong></p>
-                <p className="info-hint">Введите требования и нажмите "Подобрать сотрудника"</p>
-              </div>
-            )}
-
-            {error && (
+            {(error || searchError) && (
               <div className="error-message">
                 <AlertCircle size={18} />
-                <span>{error}</span>
+                <span>{error || searchError}</span>
               </div>
             )}
 
-            {isSearching && (
-              <div className="loading-indicator">
-                <div className="spinner"></div>
-                <p>Ищем подходящих кандидатов...</p>
-                <p className="loading-hint">Анализируем {selectedResumes.length} резюме</p>
-              </div>
-            )}
-
-            {searchResults.length > 0 && !isSearching && (
+            {enrichedCandidates.length > 0 && !isSearching && (
               <>
                 <div className="results-count">
-                  Проанализировано резюме кандидатов: {searchResults.length}
+                  {aiUsed ? 'Анализ завершен' : 'Результаты поиска'}: {enrichedCandidates.length} кандидатов
+                  {selectedResumes.length > enrichedCandidates.length && (
+                    <span style={{ fontSize: '14px', marginLeft: '10px', color: '#8CA0B5' }}>
+                      (отобраны {enrichedCandidates.length} наиболее подходящих из {selectedResumes.length})
+                    </span>
+                  )}
                 </div>
                 
                 <div className="candidates-list">
-                  {searchResults.map((candidate) => (
-                    <CandidateCard 
-                      key={candidate.id} 
-                      candidate={candidate}
-                    />
+                  {enrichedCandidates.map((candidate) => (
+                    <CandidateCard key={candidate.id} candidate={candidate} />
                   ))}
                 </div>
               </>

@@ -9,13 +9,12 @@ const Settings = () => {
   
   // Состояния для подключенных сервисов
   const [connectedServices, setConnectedServices] = useState({
-    hhru: false,
-    gmail: false,
+    superjobru: false,
     yandex: false
   })
 
   // Состояния для модальных окон
-  const [showModal, setShowModal] = useState(null) // 'hhru', 'gmail', 'yandex'
+  const [showModal, setShowModal] = useState(null) // 'superjobru', 'yandex'
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   // Убираем неиспользуемую переменную apiKey
@@ -31,8 +30,7 @@ const Settings = () => {
       const timer = setTimeout(() => {
         setNotifications(settings.notifications ?? true)
         setConnectedServices(settings.connectedServices || {
-          hhru: false,
-          gmail: false,
+          superjobru: false,
           yandex: false
         })
       }, 0)
@@ -99,8 +97,7 @@ const Settings = () => {
   // Получение названия сервиса
   const getServiceName = (service) => {
     const names = {
-      hhru: 'hh.ru',
-      gmail: 'Gmail',
+      superjobru: 'superjob.ru',
       yandex: 'Яндекс.Календарь'
     }
     return names[service]
@@ -109,10 +106,8 @@ const Settings = () => {
   // Получение иконки сервиса
   const getServiceIcon = (service) => {
     switch(service) {
-      case 'hhru':
+      case 'superjobru':
         return <Briefcase size={24} className="service-icon" />
-      case 'gmail':
-        return <Mail size={24} className="service-icon" />
       case 'yandex':
         return <Mail size={24} className="service-icon" />
       default:
@@ -153,35 +148,6 @@ const Settings = () => {
         {/* Подключенные сервисы */}
         <div className="settings-section">
           <h2 className="settings-section-title">Календари</h2>
-          
-          {/* Gmail */}
-          <div className="service-item">
-            <div className="service-info">
-              <Mail size={24} className="service-icon" />
-              <span className="service-name">Google Календарь</span>
-            </div>
-            {connectedServices.gmail ? (
-              <div className="service-status connected">
-                <span className="status-badge">
-                  <Check size={16} />
-                  Подключено
-                </span>
-                <button 
-                  className="service-disconnect"
-                  onClick={() => handleDisconnect('gmail')}
-                >
-                  <X size={18} />
-                </button>
-              </div>
-            ) : (
-              <button 
-                className="service-connect"
-                onClick={() => handleConnect('gmail')}
-              >
-                Подключить
-              </button>
-            )}
-          </div>
 
           {/* Яндекс.Календарь */}
           <div className="service-item">
@@ -217,11 +183,11 @@ const Settings = () => {
         <div className="settings-section">
           <h2 className="settings-section-title">Сайты поиска работы</h2>
           
-          {/* hh.ru */}
+          {/* superjob.ru */}
           <div className="service-item">
             <div className="service-info">
               <Briefcase size={24} className="service-icon" />
-              <span className="service-name">hh.ru</span>
+              <span className="service-name">superjob.ru</span>
             </div>
             {connectedServices.hhru ? (
               <div className="service-status connected">
@@ -239,7 +205,7 @@ const Settings = () => {
             ) : (
               <button 
                 className="service-connect"
-                onClick={() => handleConnect('hhru')}
+                onClick={() => handleConnect('superjobru')}
               >
                 Подключить
               </button>
@@ -267,8 +233,8 @@ const Settings = () => {
             </div>
             
             <div className="modal-body">
-              {showModal === 'hhru' ? (
-                // Форма для hh.ru
+              {showModal === 'superjobru' ? (
+                // Форма для superjob.ru
                 <>
                   <div className="modal-field">
                     <label className="modal-label">Email</label>

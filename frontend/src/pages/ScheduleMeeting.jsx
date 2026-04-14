@@ -11,6 +11,7 @@ const ScheduleMeeting = () => {
   
   const [meetingDate, setMeetingDate] = useState('');
   const [meetingTime, setMeetingTime] = useState('');
+  const [meetingEndTime, setMeetingEndTime] = useState('');
   const [participants, setParticipants] = useState('');
 
   // Заполняем данные, если переданы из другого компонента
@@ -54,7 +55,7 @@ const ScheduleMeeting = () => {
           <div className="form-group">
             <div className="form-label-with-icon">
               <Calendar size={20} color="#229ED9" />
-              <label className="form-label">Дата встречи</label>
+              <label className="form-label">Дата</label>
             </div>
             <input
               type="date"
@@ -65,11 +66,11 @@ const ScheduleMeeting = () => {
             />
           </div>
 
-          {/* Время встречи */}
+          {/* Время начала встречи */}
           <div className="form-group">
             <div className="form-label-with-icon">
               <Clock size={20} color="#229ED9" />
-              <label className="form-label">Время встречи</label>
+              <label className="form-label">Время начала</label>
             </div>
             <input
               type="time"
@@ -80,11 +81,26 @@ const ScheduleMeeting = () => {
             />
           </div>
 
+          {/* Время окончания встречи */}
+          <div className="form-group">
+            <div className="form-label-with-icon">
+              <Clock size={20} color="#229ED9" />
+              <label className="form-label">Время окончания</label>
+            </div>
+            <input
+              type="time"
+              className={`form-input ${meetingEndTime ? 'has-value' : ''}`}
+              value={meetingEndTime}
+              onChange={(e) => setMeetingEndTime(e.target.value)}
+              placeholder="--:--"
+            />
+          </div>
+
           {/* Участники встречи */}
           <div className="form-group">
             <div className="form-label-with-icon">
               <Users size={20} color="#229ED9" />
-              <label className="form-label">Участники встречи</label>
+              <label className="form-label">Участники</label>
             </div>
             <input
               type="text"

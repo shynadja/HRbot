@@ -1,149 +1,108 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { 
   Upload, 
   FileText, 
   Loader,
-  X,
   AlertCircle,
   Trash2
 } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
+import { useResumes } from '../hooks/useResumes'
+import { useUI } from '../hooks/useUI'
 import { api } from '../services/api'
+import { cachePersonalData } from '../utils/personalDataCache'
+import { parseResumeFile } from '../utils/resumeParser'
+import ResumeCard from '../components/ResumeCard'
 import './UploadResume.css'
 
 const UploadResume = () => {
   const navigate = useNavigate()
   const fileInputRef = useRef(null)
   const { user } = useAuth()
+  const { 
+    items: uploadedFiles, 
+    isLoading, 
+    loadResumes, 
+    deleteResume: deleteResumeAction 
+  } = useResumes()
+  const { showNotification } = useUI()
   
-  const [uploadedFiles, setUploadedFiles] = useState([])
   const [dragActive, setDragActive] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState(null)
+  const [localError, setLocalError] = useState(null)
   const [deletingId, setDeletingId] = useState(null)
+  const [parsingStatus, setParsingStatus] = useState(null)
 
-  // Допустимые форматы файлов
   const allowedFormats = [
     'application/pdf', 
     'application/msword', 
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
   ]
-  const maxSize = 10 * 1024 * 1024 // 10 MB
+  const maxSize = 10 * 1024 * 1024
 
-  // Функция загрузки резюме с useCallback
-  const loadResumes = useCallback(async () => {
-    setIsLoading(true)
-    setError(null)
-    try {
-      // Передаем ID пользователя для получения только его активных резюме
-      const data = await api.getResumes(user?.id)
-      console.log('Загруженные резюме:', data)
-      setUploadedFiles(data.resumes || [])
-    } catch (error) {
-      console.error('Error loading resumes:', error)
-      setError('Не удалось загрузить список резюме. Проверьте подключение к серверу.')
-    } finally {
-      setIsLoading(false)
-    }
-  }, [user?.id]) // Зависимость от user.id
-
-  // Загружаем список резюме при монтировании и при изменении пользователя
   useEffect(() => {
-    loadResumes()
-  }, [loadResumes]) // Зависимость от loadResumes
-
-  const formatFileSize = (bytes) => {
-    if (bytes < 1024) return bytes + ' Б'
-    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' КБ'
-    return (bytes / (1024 * 1024)).toFixed(1) + ' МБ'
-  }
-
-  const formatDateTime = (dateString) => {
-    try {
-      const date = new Date(dateString)
-      const today = new Date()
-      const yesterday = new Date(today)
-      yesterday.setDate(yesterday.getDate() - 1)
-
-      const timeStr = date.toLocaleTimeString('ru-RU', {
-        hour: '2-digit',
-        minute: '2-digit'
-      })
-
-      if (date.toDateString() === today.toDateString()) {
-        return `Сегодня в ${timeStr}`
-      } else if (date.toDateString() === yesterday.toDateString()) {
-        return `Вчера в ${timeStr}`
-      } else {
-        const dateStr = date.toLocaleDateString('ru-RU', {
-          day: '2-digit',
-          month: '2-digit',
-          year: 'numeric'
-        })
-        return `${dateStr} в ${timeStr}`
-      }
-    } catch {
-      return 'Дата неизвестна'
+    if (user?.id) {
+      loadResumes(user.id)
     }
-  }
+  }, [loadResumes, user?.id])
 
   const handleFileSelect = async (file) => {
-    setError(null)
+    setLocalError(null)
+    setParsingStatus(null)
     
-    // Проверка формата
     if (!allowedFormats.includes(file.type)) {
-      setError(`Неподдерживаемый формат файла. Разрешены: PDF, DOC, DOCX`)
+      setLocalError(`Неподдерживаемый формат файла. Разрешены: PDF, DOC, DOCX`)
       return
     }
 
-    // Проверка размера
     if (file.size > maxSize) {
-      setError(`Файл слишком большой. Максимальный размер: 10 МБ`)
+      setLocalError(`Файл слишком большой. Максимальный размер: 10 МБ`)
       return
     }
 
     setIsUploading(true)
+    setParsingStatus('parsing')
     
     try {
-      console.log('Загрузка файла:', file.name)
+      const parsedData = await parseResumeFile(file)
+      setParsingStatus('uploading')
+      
       const response = await api.uploadResume(file, user)
       
-      console.log('Файл загружен:', response)
-      
-      const newFile = {
-        id: response.id,
-        name: response.file_name,
-        size: formatFileSize(response.file_size),
-        rawSize: response.file_size,
-        uploadDate: response.upload_date,
-        file_type: response.file_type,
-        user_id: user?.id
+      if (response.candidate?.uuid || response.candidate_uuid) {
+        const candidateUuid = response.candidate?.uuid || response.candidate_uuid
+        cachePersonalData(candidateUuid, {
+          first_name: parsedData.first_name,
+          last_name: parsedData.last_name,
+          full_name: parsedData.full_name,
+          email: parsedData.email,
+          phone: parsedData.phone
+        })
       }
       
-      setUploadedFiles(prev => [newFile, ...prev])
+      // Перезагружаем список через Redux
+      await loadResumes(user?.id)
+      showNotification('Резюме успешно загружено', 'success')
       
     } catch (error) {
       console.error('Upload error:', error)
-      
       if (error.response) {
-        setError(`Ошибка сервера: ${error.response.status} - ${error.response.data?.error || 'Неизвестная ошибка'}`)
+        setLocalError(`Ошибка сервера: ${error.response.status}`)
       } else if (error.request) {
-        setError('Сервер не отвечает. Проверьте, запущен ли бэкенд.')
+        setLocalError('Сервер не отвечает. Проверьте, запущен ли бэкенд.')
       } else {
-        setError(`Ошибка при загрузке: ${error.message}`)
+        setLocalError(`Ошибка при загрузке: ${error.message}`)
       }
     } finally {
       setIsUploading(false)
+      setParsingStatus(null)
     }
   }
 
   const handleFileChange = (e) => {
     if (e.target.files && e.target.files.length > 0) {
-      Array.from(e.target.files).forEach(file => {
-        handleFileSelect(file)
-      })
+      Array.from(e.target.files).forEach(file => handleFileSelect(file))
       e.target.value = ''
     }
   }
@@ -151,7 +110,6 @@ const UploadResume = () => {
   const handleDrag = (e) => {
     e.preventDefault()
     e.stopPropagation()
-    
     if (e.type === 'dragenter' || e.type === 'dragover') {
       setDragActive(true)
     } else if (e.type === 'dragleave') {
@@ -163,68 +121,35 @@ const UploadResume = () => {
     e.preventDefault()
     e.stopPropagation()
     setDragActive(false)
-    
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      Array.from(e.dataTransfer.files).forEach(file => {
-        handleFileSelect(file)
-      })
+      Array.from(e.dataTransfer.files).forEach(file => handleFileSelect(file))
     }
   }
 
-  // Удаление резюме
   const handleDeleteResume = async (e, resume) => {
-    e.stopPropagation() // Предотвращаем открытие файла
-    
-    if (!window.confirm(`Вы уверены, что хотите удалить резюме "${resume.name}"?`)) {
-      return
-    }
+    e.stopPropagation()
+    if (!window.confirm(`Вы уверены, что хотите удалить резюме "${resume.name}"?`)) return
     
     setDeletingId(resume.id)
-    setError(null)
-    
     try {
-      await api.deleteResume(resume.id)
-      
-      // Удаляем из локального состояния
-      setUploadedFiles(prev => prev.filter(f => f.id !== resume.id))
-      
-      console.log('Резюме удалено:', resume.id)
+      await deleteResumeAction(resume.id)
+      showNotification('Резюме удалено', 'info')
     } catch (error) {
-      console.error('Error deleting resume:', error)
-      setError('Не удалось удалить резюме. Попробуйте позже.')
+      setLocalError('Не удалось удалить резюме.')
     } finally {
       setDeletingId(null)
     }
   }
 
-  // Открытие файла для просмотра
   const handleViewResume = (resume) => {
-    try {
-      const viewUrl = `http://localhost:3001/api/resumes/${resume.id}/view`
-      console.log('Открытие файла:', viewUrl)
-      window.open(viewUrl, '_blank')
-    } catch (error) {
-      console.error('Error viewing resume:', error)
-      setError('Не удалось открыть резюме')
-    }
+    const viewUrl = `${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/resumes/${resume.id}/view`
+    window.open(viewUrl, '_blank')
   }
 
-  // Определение иконки в зависимости от расширения файла
-  const getFileIcon = (fileName, fileType) => {
-    const extension = fileName?.split('.').pop()?.toLowerCase()
-    
-    // Ярко-синий цвет для иконки
-    if (extension === 'pdf' || fileType?.includes('pdf')) {
-      return <FileText size={24} className="file-icon pdf" style={{ color: '#229ED9' }} />
-    } else if (extension === 'doc' || extension === 'docx' || fileType?.includes('word') || fileType?.includes('document')) {
-      return <FileText size={24} className="file-icon word" style={{ color: '#229ED9' }} />
-    }
-    return <FileText size={24} className="file-icon" style={{ color: '#229ED9' }} />
-  }
-
-  // Получение расширения файла для отображения
-  const getFileExtension = (fileName) => {
-    return fileName?.split('.').pop()?.toUpperCase() || ''
+  const getParsingStatusText = () => {
+    if (parsingStatus === 'parsing') return 'Извлечение данных...'
+    if (parsingStatus === 'uploading') return 'Загрузка на сервер...'
+    return 'Загрузка...'
   }
 
   if (isLoading) {
@@ -250,11 +175,11 @@ const UploadResume = () => {
       </div>
       
       <div className="upload-resume-content">
-        {error && (
+        {localError && (
           <div className="error-message">
             <AlertCircle size={18} />
-            <span>{error}</span>
-            <button className="error-close" onClick={() => setError(null)}>×</button>
+            <span>{localError}</span>
+            <button className="error-close" onClick={() => setLocalError(null)}>×</button>
           </div>
         )}
         
@@ -262,7 +187,6 @@ const UploadResume = () => {
           Загрузите резюме в систему
         </p>
         
-        {/* Область загрузки */}
         <div 
           className={`upload-area ${dragActive ? 'drag-active' : ''} ${isUploading ? 'uploading' : ''}`}
           onDragEnter={handleDrag}
@@ -284,7 +208,7 @@ const UploadResume = () => {
             <>
               <Loader size={48} className="upload-icon spinning" />
               <div className="upload-text">
-                <span className="upload-text-main">Загрузка...</span>
+                <span className="upload-text-main">{getParsingStatusText()}</span>
                 <span className="upload-text-secondary">Пожалуйста, подождите</span>
               </div>
             </>
@@ -293,16 +217,13 @@ const UploadResume = () => {
               <Upload size={48} className="upload-icon" style={{ color: '#229ED9' }} />
               <div className="upload-text">
                 <span className="upload-text-main">Перетащите файлы сюда</span>
-                <span className="upload-text-secondary">или нажмите для выбора файлов</span>
-                <span className="upload-text-hint">
-                  PDF, DOC, DOCX до 10 МБ
-                </span>
+                <span className="upload-text-secondary">или нажмите для выбора</span>
+                <span className="upload-text-hint">PDF, DOC, DOCX до 10 МБ</span>
               </div>
             </>
           )}
         </div>
 
-        {/* Список загруженных резюме */}
         {uploadedFiles.length > 0 ? (
           <div className="uploaded-files-list">
             <div className="files-list-header">
@@ -312,41 +233,24 @@ const UploadResume = () => {
             
             <div className="files-list">
               {uploadedFiles.map((file) => (
-                <div 
-                  key={file.id} 
-                  className="file-item"
-                  title={`Нажмите чтобы открыть: ${file.name}`}
-                >
-                  <div 
-                    className="file-clickable-area"
-                    onClick={() => handleViewResume(file)}
-                  >
-                    <div className="file-icon-container">
-                      {getFileIcon(file.name, file.file_type)}
-                    </div>
-                    <div className="file-details">
-                      <div className="file-name">
-                        {file.name}
-                        <span className="file-extension">{getFileExtension(file.name)}</span>
-                      </div>
-                      <div className="file-metadata">
-                        <span className="file-size">{file.size || formatFileSize(file.file_size)}</span>
-                        <span className="file-date">{formatDateTime(file.upload_date || file.uploadDate)}</span>
-                      </div>
-                    </div>
+                <div key={file.id} className="file-item-wrapper">
+                  <div className="file-card-clickable" onClick={() => handleViewResume(file)}>
+                    <ResumeCard 
+                      resume={file}
+                      showCheckbox={false}
+                      selected={false}
+                    />
                   </div>
-                  
-                  {/* Кнопка удаления */}
                   <button 
-                    className="file-delete-btn"
+                    className="file-delete-btn-overlay"
                     onClick={(e) => handleDeleteResume(e, file)}
                     disabled={deletingId === file.id}
                     title="Удалить резюме"
                   >
                     {deletingId === file.id ? (
-                      <Loader size={18} className="spinning" />
+                      <Loader size={16} className="spinning" />
                     ) : (
-                      <Trash2 size={18} />
+                      <Trash2 size={16} />
                     )}
                   </button>
                 </div>
@@ -358,9 +262,7 @@ const UploadResume = () => {
             <div className="empty-files">
               <FileText size={48} className="empty-icon" style={{ color: '#229ED9', opacity: 0.5 }} />
               <p>Нет загруженных резюме</p>
-              <span className="empty-hint">
-                Загрузите резюме, чтобы начать работу
-              </span>
+              <span className="empty-hint">Загрузите резюме, чтобы начать работу</span>
             </div>
           )
         )}
